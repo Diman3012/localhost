@@ -33,17 +33,18 @@
     thead {background: #f1f1f1;}
     th,td {padding:8px 6px; border-bottom:1px solid #e6e6e6; text-align:center; font-size:0.95rem;}
     tbody tr:hover {background: rgba(0,0,0,0.02);}
-    tbody {max-height:320px; display:block; overflow:auto;}
+    tbody {max-height:400px; display:block; overflow:auto;}
     thead, tbody tr {display:table; width:100%; table-layout:fixed;}
     thead th {padding:10px; font-weight:700;}
     .fullscreen {position:fixed; inset:0; background:rgba(0,0,0,0.92); display:none; align-items:center; justify-content:center; z-index:9999;}
     .fullscreen img {max-width:92%; max-height:92%; border-radius:8px; box-shadow: 0 10px 50px rgba(0,0,0,0.7);}
     .close-btn {position:absolute; top:18px; right:22px; color:#fff; font-size:34px; cursor:pointer;}
-    @media (max-width:900px){.camera{ width:100%; height:220px;} .content{ flex-direction:column;} tbody{ max-height:220px;}}
+    @media (max-width:900px){.camera{ width:100%; height:220px;} .content{ flex-direction:column;} tbody{ max-height:300px;}}
     tbody::-webkit-scrollbar{width:10px;} tbody::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#ddd,#bbb); border-radius:8px;}
     .muted { color:var(--mid); } .pill{ background:#222; color:#fff; padding:6px 10px; border-radius:999px; font-size:0.85rem; }
     img.tiny { height:48px; max-width:120px; object-fit:cover; cursor:pointer; border-radius:4px; }
     td.left { text-align:left; padding-left:8px; }
+    .no-data {text-align:center; padding:20px; color:var(--mid); font-style:italic;}
   </style>
 </head>
 <body>
@@ -89,13 +90,8 @@ function getHourInTZ(date){
   return date.getUTCHours();
 }
 function getShiftForHour(h) {
-  // Утренняя: 07:00 — 12:00
   if (h >= 7 && h < 12) return "Утренняя";
-
-  // Дневная: 12:00 — 19:00
   if (h >= 12 && h < 19) return "Дневная";
-
-  // Ночная: 19:00 — 24:00 и 00:00 — 07:00
   return "Ночная";
 }
 
@@ -118,9 +114,9 @@ function createSection(id, title){
         <div class="row"><div><small>Дата</small></div><div class="big" id="${id}-date">-</div></div>
         <div class="row"><div><small>Время (МСК)</small></div><div class="big" id="${id}-time">-</div></div>
         <div class="row"><div><small>Смена</small></div><div id="${id}-shift" class="big">-</div></div>
-        <div class="row"><div><small>Кол-во грузовиков</small></div><div id="${id}-trucks">?</div></div>
-        <div class="row"><div><small>Завезено</small></div><div id="${id}-in">пакетов: ? / анодов: ?</div></div>
-        <div class="row"><div><small>Вывезено</small></div><div id="${id}-out">пакетов: ? / анодов: ?</div></div>
+        <div class="row"><div><small>Кол-во грузовиков</small></div><div id="${id}-trucks">0</div></div>
+        <div class="row"><div><small>Завезено</small></div><div id="${id}-in">пакетов: 0 / анодов: 0</div></div>
+        <div class="row"><div><small>Вывезено</small></div><div id="${id}-out">пакетов: 0 / анодов: 0</div></div>
       </div>
     </div>
     <div style="height:12px"></div>
@@ -133,7 +129,9 @@ function createSection(id, title){
             <th>Вывезено пакетов</th><th>Вывезено анодов</th>
           </tr>
         </thead>
-        <tbody id="${id}-tbody"></tbody>
+        <tbody id="${id}-tbody">
+          <tr><td colspan="8" class="no-data">Нет данных</td></tr>
+        </tbody>
       </table>
     </div>
   `;
@@ -178,28 +176,44 @@ async function updateDashboard(){
 
     Object.keys(sections).forEach(id=>{
       const section = data[id] || { trucks:0, in:0, out:0, arrivals:[] };
-      // Сводные цифры
-      document.getElementById(`${id}-trucks`).textContent = section.trucks ?? 0;
-      document.getElementById(`${id}-in`).textContent = `пакетов: ? / анодов: ${section.in ?? 0}`;
-      document.getElementById(`${id}-out`).textContent = `пакетов: ? / анодов: ${section.out ?? 0}`;
+      const arrivals = section.arrivals || [];
+      
+      // Считаем общие показатели на основе данных из таблицы
+      let totalInPackages = 0;
+      let totalInBlocks = 0;
+      let totalOutPackages = 0;
+      let totalOutBlocks = 0;
+      let trucks = arrivals.length;
+      
+      arrivals.forEach(a => {
+        const inPackages = a.packages_count ?? 0;
+        const inBlocks = a.blocks_sum ?? 0;
+        
+        totalInPackages += inPackages;
+        totalInBlocks += inBlocks;
+        
+        // Если грузовик убыл, считаем вывезенное
+        if (a.departed_at && a.departed_at !== 'NULL') {
+          totalOutPackages += inPackages;
+          totalOutBlocks += inBlocks;
+        }
+      });
+      
+      // Обновляем сводные цифры
+      document.getElementById(`${id}-trucks`).textContent = trucks;
+      document.getElementById(`${id}-in`).textContent = `пакетов: ${totalInPackages} / анодов: ${totalInBlocks}`;
+      document.getElementById(`${id}-out`).textContent = `пакетов: ${totalOutPackages} / анодов: ${totalOutBlocks}`;
 
       // Таблица arrivals
       const tbody = document.getElementById(`${id}-tbody`);
-      const arrivals = section.arrivals || [];
+      
       if(arrivals.length === 0){
-        let rows = "";
-        for(let i=1;i<=20;i++){
-          rows += `<tr>
-            <td>${i}</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>
-          </tr>`;
-        }
-        tbody.innerHTML = rows;
+        tbody.innerHTML = '<tr><td colspan="8" class="no-data">Нет данных</td></tr>';
       } else {
-        let rows = "";
+        let rows = '';
         arrivals.forEach((a, idx) => {
           let arrivedDisplay = '—';
           if (a.arrived_at) {
-            // форматируем время (убираем пробелы, ISO)
             const d = new Date(a.arrived_at.replace(' ', 'T'));
             arrivedDisplay = `${fmtDateInTZ(d)} ${fmtTimeInTZ(d)}<div class="muted">${a.state_number || ''}</div>`;
           } else {
@@ -267,4 +281,3 @@ flash("Время отображается по Московскому часо�
 </script>
 </body>
 </html>
-```
