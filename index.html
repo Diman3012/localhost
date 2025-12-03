@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Склады — Мониторинг (ч/б)</title>
+  <style>
+    :root {
+      --bg: #f5f5f5;
+      --panel: #fff;
+      --muted: #ccc;
+      --dark: #111;
+      --mid: #666;
+      --accent: #222;
+      --glass: rgba(255,255,255,0.04);
+    }
+    html,body {height:100%; margin:0; font-family: Inter, Arial, Helvetica, sans-serif; background: linear-gradient(180deg,var(--bg),#eee); color: var(--dark); -webkit-font-smoothing:antialiased;}
+    header {display:flex; gap:6px; align-items:center; padding:10px; background:#222; color:#fff; box-shadow:0 2px 6px rgba(0,0,0,0.4); position:sticky; top:0; z-index:100;}
+    .tab-btn {background:transparent; color:#fff; border:1px solid rgba(255,255,255,0.06); padding:10px 16px; cursor:pointer; border-radius:8px; transition:all 180ms ease; font-weight:600;}
+    .tab-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.35);}
+    .tab-btn.active {background:#555;}
+    main.container {padding:20px; max-width:1200px; margin:16px auto;}
+    .section {display:none; padding:18px; gap:18px;}
+    .section.active {display:flex; flex-direction:column;}
+    .content {display:flex; gap:18px; flex-wrap:wrap; align-items:flex-start;}
+    .camera {width:420px; min-width:280px; height:320px; background:var(--muted); display:flex; justify-content:center; align-items:center; cursor:pointer; overflow:hidden; border-radius:8px; border:2px solid rgba(0,0,0,0.07); box-shadow: 0 6px 18px rgba(0,0,0,0.12) inset;}
+    .camera img {width:100%; height:100%; object-fit:cover; display:block;}
+    .info {flex:1; min-width:260px; display:flex; flex-direction:column; gap:10px;}
+    .info .row {display:flex; gap:10px; align-items:center; justify-content:space-between; padding:10px; background:var(--panel); border-radius:8px;}
+    .info .row small {color:var(--mid);}
+    .info .big {font-size:1.15rem; font-weight:700;}
+    table {width:100%; border-collapse:collapse; background:var(--panel); border-radius:8px; overflow:hidden;}
+    thead {background: #f1f1f1;}
+    th,td {padding:8px 6px; border-bottom:1px solid #e6e6e6; text-align:center; font-size:0.95rem;}
+    tbody tr:hover {background: rgba(0,0,0,0.02);}
+    tbody {max-height:320px; display:block; overflow:auto;}
+    thead, tbody tr {display:table; width:100%; table-layout:fixed;}
+    thead th {padding:10px; font-weight:700;}
+    .fullscreen {position:fixed; inset:0; background:rgba(0,0,0,0.92); display:none; align-items:center; justify-content:center; z-index:9999;}
+    .fullscreen img {max-width:92%; max-height:92%; border-radius:8px; box-shadow: 0 10px 50px rgba(0,0,0,0.7);}
+    .close-btn {position:absolute; top:18px; right:22px; color:#fff; font-size:34px; cursor:pointer;}
+    @media (max-width:900px){.camera{ width:100%; height:220px;} .content{ flex-direction:column;} tbody{ max-height:220px;}}
+    tbody::-webkit-scrollbar{width:10px;} tbody::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#ddd,#bbb); border-radius:8px;}
+    .muted { color:var(--mid); } .pill{ background:#222; color:#fff; padding:6px 10px; border-radius:999px; font-size:0.85rem; }
+    img.tiny { height:48px; max-width:120px; object-fit:cover; cursor:pointer; border-radius:4px; }
+    td.left { text-align:left; padding-left:8px; }
+  </style>
+</head>
+<body>
+<header>
+  <button class="tab-btn active" data-section="buffer">Буфферн склад СПО</button>
+  <button class="tab-btn" data-section="south">Южный склад анодов ОО</button>
+  <button class="tab-btn" data-section="north">Северный склад анодов ОО</button>
+  <button class="tab-btn" data-section="ready">Склад готовой продукции</button>
+  <div style="flex:1"></div>
+  <div class="pill" id="tz-indicator">Волгоград</div>
+</header>
+
+<main class="container">
+  <section id="buffer" class="section active"></section>
+  <section id="south" class="section"></section>
+  <section id="north" class="section"></section>
+  <section id="ready" class="section"></section>
+</main>
+
+<div id="fullscreen" class="fullscreen" aria-hidden="true">
+  <span class="close-btn" role="button" aria-label="Закрыть">&times;</span>
+  <img src="" alt="Full Image">
+</div>
+
+<script>
+const MOSCOW_TZ = "Europe/Moscow";
+const sectionImages = {
+  buffer: "1.jpg",
+  south: "2.jpg",
+  north: "3.jpg",
+  ready: "4.jpg"
+};
+
+function fmtDateInTZ(date){
+  return new Intl.DateTimeFormat("ru-RU", { timeZone: MOSCOW_TZ, day: "2-digit", month:"2-digit", year:"numeric" }).format(date);
+}
+function fmtTimeInTZ(date){
+  return new Intl.DateTimeFormat("ru-RU", { timeZone: MOSCOW_TZ, hour: "2-digit", minute:"2-digit", second:"2-digit" }).format(date);
+}
+function getHourInTZ(date){
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: MOSCOW_TZ, hour: "2-digit", hour12:false }).formatToParts(date);
+  for(const p of parts) if(p.type==="hour") return Number(p.value);
+  return date.getUTCHours();
+}
+function getShiftForHour(h) {
+  // Утренняя: 07:00 — 12:00
+  if (h >= 7 && h < 12) return "Утренняя";
+
+  // Дневная: 12:00 — 19:00
+  if (h >= 12 && h < 19) return "Дневная";
+
+  // Ночная: 19:00 — 24:00 и 00:00 — 07:00
+  return "Ночная";
+}
+
+function openFullscreen(src){
+  const fs = document.getElementById("fullscreen");
+  fs.style.display="flex"; fs.setAttribute("aria-hidden","false");
+  fs.querySelector("img").src = src;
+}
+document.querySelector(".close-btn").addEventListener("click", ()=>{ const fs = document.getElementById("fullscreen"); fs.style.display="none"; fs.setAttribute("aria-hidden","true"); });
+document.getElementById("fullscreen").addEventListener("click",(e)=>{ if(e.target.id==="fullscreen") { e.currentTarget.style.display="none"; e.currentTarget.setAttribute("aria-hidden","true"); } });
+
+function createSection(id, title){
+  const container = document.getElementById(id);
+  container.innerHTML = `
+    <div class="content" role="region" aria-label="${title}">
+      <div class="camera" tabindex="0" aria-label="Камера ${title}">
+        <img src="${sectionImages[id]}" alt="Камера ${title}">
+      </div>
+      <div class="info" aria-live="polite">
+        <div class="row"><div><small>Дата</small></div><div class="big" id="${id}-date">-</div></div>
+        <div class="row"><div><small>Время (МСК)</small></div><div class="big" id="${id}-time">-</div></div>
+        <div class="row"><div><small>Смена</small></div><div id="${id}-shift" class="big">-</div></div>
+        <div class="row"><div><small>Кол-во грузовиков</small></div><div id="${id}-trucks">?</div></div>
+        <div class="row"><div><small>Завезено</small></div><div id="${id}-in">пакетов: ? / анодов: ?</div></div>
+        <div class="row"><div><small>Вывезено</small></div><div id="${id}-out">пакетов: ? / анодов: ?</div></div>
+      </div>
+    </div>
+    <div style="height:12px"></div>
+    <div style="overflow:auto">
+      <table aria-describedby="${title}">
+        <thead>
+          <tr>
+            <th>№</th><th>Прибыл</th><th>Фото</th><th>Убыл</th>
+            <th>Завезено пакетов</th><th>Завезено анодов</th>
+            <th>Вывезено пакетов</th><th>Вывезено анодов</th>
+          </tr>
+        </thead>
+        <tbody id="${id}-tbody"></tbody>
+      </table>
+    </div>
+  `;
+
+  const cam = container.querySelector(".camera");
+  const img = cam.querySelector("img");
+  cam.addEventListener("click", ()=> openFullscreen(img.src));
+  cam.addEventListener("keydown", (e)=> { if(e.key==="Enter"||e.key===" ") openFullscreen(img.src); });
+}
+
+const sections = { buffer: "Буфферн склад СПО", south: "Южный склад анодов ОО", north: "Северный склад анодов ОО", ready: "Склад готовой продукции" };
+Object.entries(sections).forEach(([id,title])=> createSection(id,title));
+
+document.querySelectorAll(".tab-btn").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    document.querySelectorAll(".tab-btn").forEach(b=>b.classList.remove("active"));
+    btn.classList.add("active");
+    document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
+    document.getElementById(btn.dataset.section).classList.add("active");
+  });
+});
+
+async function updateDashboard(){
+  const now = new Date();
+  const dateStr = fmtDateInTZ(now);
+  const timeStr = fmtTimeInTZ(now);
+  const hour = getHourInTZ(now);
+
+  Object.keys(sections).forEach(id=>{
+    document.getElementById(`${id}-date`).textContent = dateStr;
+    document.getElementById(`${id}-time`).textContent = timeStr;
+    document.getElementById(`${id}-shift`).textContent = getShiftForHour(hour);
+  });
+
+  try{
+    const resp = await fetch('api.php', { cache: "no-store" });
+    if(!resp.ok) {
+      console.error("Ошибка API:", resp.status, resp.statusText);
+      return;
+    }
+    const data = await resp.json();
+
+    Object.keys(sections).forEach(id=>{
+      const section = data[id] || { trucks:0, in:0, out:0, arrivals:[] };
+      // Сводные цифры
+      document.getElementById(`${id}-trucks`).textContent = section.trucks ?? 0;
+      document.getElementById(`${id}-in`).textContent = `пакетов: ? / анодов: ${section.in ?? 0}`;
+      document.getElementById(`${id}-out`).textContent = `пакетов: ? / анодов: ${section.out ?? 0}`;
+
+      // Таблица arrivals
+      const tbody = document.getElementById(`${id}-tbody`);
+      const arrivals = section.arrivals || [];
+      if(arrivals.length === 0){
+        let rows = "";
+        for(let i=1;i<=20;i++){
+          rows += `<tr>
+            <td>${i}</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>
+          </tr>`;
+        }
+        tbody.innerHTML = rows;
+      } else {
+        let rows = "";
+        arrivals.forEach((a, idx) => {
+          let arrivedDisplay = '—';
+          if (a.arrived_at) {
+            // форматируем время (убираем пробелы, ISO)
+            const d = new Date(a.arrived_at.replace(' ', 'T'));
+            arrivedDisplay = `${fmtDateInTZ(d)} ${fmtTimeInTZ(d)}<div class="muted">${a.state_number || ''}</div>`;
+          } else {
+            arrivedDisplay = a.state_number ? `<div class="muted">${a.state_number}</div>` : '—';
+          }
+
+          let departedDisplay = '—';
+          if (a.departed_at && a.departed_at !== 'NULL') {
+            const d2 = new Date(a.departed_at.replace(' ', 'T'));
+            departedDisplay = `${fmtDateInTZ(d2)} ${fmtTimeInTZ(d2)}`;
+          }
+
+          let photoCell = '—';
+          if (a.arrived_photo) {
+            photoCell = `<img class="tiny" src="${a.arrived_photo}" alt="in" onclick="openFullscreen(this.src)">`;
+          } else {
+            photoCell = '📷';
+          }
+
+          const in_packages = a.packages_count ?? 0;
+          const in_blocks = a.blocks_sum ?? 0;
+          const out_packages = (a.departed_at && a.departed_at !== 'NULL') ? in_packages : 0;
+          const out_blocks = (a.departed_at && a.departed_at !== 'NULL') ? in_blocks : 0;
+
+          rows += `<tr>
+            <td>${idx+1}</td>
+            <td class="left">${arrivedDisplay}</td>
+            <td>${photoCell}</td>
+            <td class="left">${departedDisplay}</td>
+            <td>${in_packages}</td>
+            <td>${in_blocks}</td>
+            <td>${out_packages}</td>
+            <td>${out_blocks}</td>
+          </tr>`;
+        });
+        tbody.innerHTML = rows;
+      }
+    });
+
+  } catch(e){
+    console.error("Ошибка при получении данных:", e);
+  }
+}
+
+updateDashboard();
+setInterval(updateDashboard, 2000);
+
+function flash(msg, ms=2500){
+  let el = document.createElement("div");
+  el.textContent = msg;
+  el.style.position="fixed"; el.style.left="50%"; el.style.bottom="22px"; el.style.transform="translateX(-50%)";
+  el.style.background="#111"; el.style.color="#fff"; el.style.padding="10px 14px"; el.style.borderRadius="8px"; el.style.zIndex=10000;
+  document.body.appendChild(el); setTimeout(()=>el.remove(), ms);
+}
+
+flash("Время отображается по Московскому часовому поясу (MSK).");
+
+(function addKeyboardNav(){
+  const tabs = Array.from(document.querySelectorAll(".tab-btn"));
+  tabs.forEach((t,i)=> t.addEventListener("keydown",(e)=>{
+    if(e.key==="ArrowRight"){ tabs[(i+1)%tabs.length].focus();}
+    if(e.key==="ArrowLeft"){ tabs[(i-1+tabs.length)%tabs.length].focus();}
+  }));
+})();
+</script>
+</body>
+</html>
+```
