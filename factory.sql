@@ -1,3 +1,4 @@
+DROP DATABASE IF EXISTS factory;
 CREATE DATABASE factory;
 USE factory;
 
@@ -72,7 +73,7 @@ CREATE TABLE packages (
 CREATE TABLE event_log (
     id INT PRIMARY KEY AUTO_INCREMENT,
     arrival_id INT NOT NULL,
-    event_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,  -- Исправлено: NOW() → CURRENT_TIMESTAMP
+    event_time DATETIME,  -- Исправлено: NOW() → CURRENT_TIMESTAMP
     event_type VARCHAR(100),
     camera_id INT UNSIGNED,
     photo_path VARCHAR(255),
