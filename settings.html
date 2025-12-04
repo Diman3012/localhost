@@ -25,11 +25,12 @@
       background: transparent;
       color: #fff;
       border: 1px solid rgba(255,255,255,0.06);
-      padding: 10px 16px;
+      padding: 12px 18px;
       cursor: pointer;
       border-radius: 8px;
       transition: all 180ms ease;
       font-weight: 600;
+      font-size: 1.05rem;
     }
     .settings-page .tab-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.35); }
     .settings-page .tab-btn.active { background: #555; }
@@ -59,9 +60,9 @@
       display: flex;
     }
     .settings-page .camera {
-      width: 420px;
+      width: 100%;
       min-width: 280px;
-      height: 320px;
+      height: 220px;
       background: var(--muted);
       display: flex;
       justify-content: center;
@@ -91,30 +92,21 @@
 </header>
 
 <main>
-  <section id="buffer" class="section active">
-    <div class="camera" tabindex="0" aria-label="Камера Буфферн склад СПО">
-      <img src="1.jpg" alt="Камера Буфферн склад СПО">
+  <div class="settings-main" style="display:flex;gap:18px;max-width:1200px;margin:16px auto;">
+    <div class="preview-column" style="flex:1;min-width:280px;">
+      <div class="camera" tabindex="0" aria-label="Превью камеры">
+        <img id="preview-img" src="1.jpg" alt="Превью">
+      </div>
+      <div class="cameras-list" id="preview-cameras" style="margin-top:14px;"></div>
     </div>
-    <div class="cameras-list" id="buffer-cameras"></div>
-  </section>
-  <section id="south" class="section">
-    <div class="camera" tabindex="0" aria-label="Камера Южный склад анодов ОО">
-      <img src="2.jpg" alt="Камера Южный склад анодов ОО">
-    </div>
-    <div class="cameras-list" id="south-cameras"></div>
-  </section>
-  <section id="north" class="section">
-    <div class="camera" tabindex="0" aria-label="Камера Северный склад анодов ОО">
-      <img src="3.jpg" alt="Камера Северный склад анодов ОО">
-    </div>
-    <div class="cameras-list" id="north-cameras"></div>
-  </section>
-  <section id="ready" class="section">
-    <div class="camera" tabindex="0" aria-label="Камера Склад готовой продукции">
-      <img src="4.jpg" alt="Камера Склад готовой продукции">
-    </div>
-    <div class="cameras-list" id="ready-cameras"></div>
-  </section>
+
+    <aside class="right-panel" style="width:320px;">
+      <div style="background:#fff;border-radius:8px;padding:12px;box-shadow:0 6px 18px rgba(0,0,0,0.04);">
+        <strong style="display:block;margin-bottom:10px;">Настройки</strong>
+        <div id="right-sections" style="display:flex;flex-direction:column;gap:8px;"></div>
+      </div>
+    </aside>
+  </div>
 </main>
 
 <div id="fullscreen" class="fullscreen" aria-hidden="true">
@@ -123,52 +115,16 @@
 </div>
 
 <script>
-// Fade in on page load with minimal animation
-window.addEventListener('load', ()=>{
-  document.body.style.opacity = '1';
-  document.body.style.transition = 'opacity 150ms ease';
-});
-document.body.style.opacity = '0';
-
-// Restore section from sessionStorage
-const savedSection = sessionStorage.getItem('currentSection') || 'buffer';
-const tabToActivate = document.querySelector(`[data-section="${savedSection}"]`);
-if(tabToActivate) {
-  document.querySelectorAll('.tab-btn').forEach(b=> b.classList.remove('active'));
-  tabToActivate.classList.add('active');
-  document.querySelectorAll('.section').forEach(s=> s.classList.remove('active'));
-  document.getElementById(savedSection).classList.add('active');
-}
-
-// Back button — save current section and navigate to index with fade
-document.getElementById('back-btn').addEventListener('click', ()=>{
-  // Save the currently active section and navigate back with explicit param
-  const activeSection = document.querySelector('.section.active');
-  const sectionId = activeSection ? activeSection.id : (sessionStorage.getItem('currentSection') || 'buffer');
-  // Also keep sessionStorage in sync
-  sessionStorage.setItem('currentSection', sectionId);
-  document.body.style.opacity = '0';
-  document.body.style.transition = 'opacity 200ms ease';
-  setTimeout(()=> { window.location.href = 'index.html'; }, 200);
-});
-
-// Tab switching - also save section
-document.querySelectorAll('.tab-btn').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    document.querySelectorAll('.tab-btn').forEach(b=> b.classList.remove('active'));
-    btn.classList.add('active');
-    document.querySelectorAll('.section').forEach(s=> s.classList.remove('active'));
-    document.getElementById(btn.dataset.section).classList.add('active');
-    // Save current section to sessionStorage
-    sessionStorage.setItem('currentSection', btn.dataset.section);
-    // Load cameras for this section
-    loadCamerasForSection(btn.dataset.section);
-  });
-});
-
-// --- Cameras editing support ---
+// --- Cameras editing support (define early) ---
 const SECTION_TO_WAREHOUSE = { buffer: 1, south: 2, north: 3, ready: 4 };
+const WAREHOUSE_NAMES = { 1: 'Буфферн склад СПО', 2: 'Южный склад анодов ОО', 3: 'Северный склад анодов ОО', 4: 'Склад готовой продукции' };
 let CAMERA_TYPES = [];
+let CURRENT_WAREHOUSE_ID = 1;
+
+function sectionImageFor(id){
+  const map = { buffer: '1.jpg', south: '2.jpg', north: '3.jpg', ready: '4.jpg' };
+  return map[id] || '1.jpg';
+}
 
 async function fetchCameraTypes(){
   try{
@@ -180,12 +136,66 @@ async function fetchCameraTypes(){
   }catch(e){ console.error('types load error', e); return []; }
 }
 
+async function loadCamerasForWarehouse(wid, sectionId){
+  const container = document.getElementById('preview-cameras');
+  if(!container) return;
+  container.innerHTML = '<div class="muted">Загрузка камер...</div>';
+  await fetchCameraTypes();
+  CURRENT_WAREHOUSE_ID = wid;
+  // update preview image
+  const pi = document.getElementById('preview-img'); if(pi) pi.src = sectionImageFor(sectionId);
+  try{
+    const resp = await fetch('cameras_api.php?warehouse_id=' + encodeURIComponent(wid), { cache: 'no-store' });
+    if(!resp.ok){ container.innerHTML = '<div class="muted">Ошибка загрузки</div>'; return; }
+    const data = await resp.json();
+    const cams = data.cameras || [];
+    container.innerHTML = '';
+    if(cams.length === 0){ container.innerHTML = '<div class="muted">Камеры не настроены для этого склада</div>'; return; }
+    cams.forEach(cam => renderCameraForm(container, cam));
+  }catch(e){ console.error(e); container.innerHTML = '<div class="muted">Ошибка загрузки</div>'; }
+}
+
+// Fade in on page load with minimal animation
+window.addEventListener('load', ()=>{
+  document.body.style.opacity = '1';
+  document.body.style.transition = 'opacity 150ms ease';
+});
+document.body.style.opacity = '0';
+
+// Restore preview image from sessionStorage but DO NOT auto-load forms
+const savedSection = sessionStorage.getItem('currentSection') || 'buffer';
+const previewImg = document.getElementById('preview-img');
+if(previewImg){
+  previewImg.src = sectionImageFor(savedSection);
+}
+
 function renderCameraForm(container, cam){
   const div = document.createElement('div');
   div.className = 'camera-form';
+  // parse existing ip_camera into host, login, password
+  function parseRtsp(url){
+    if(!url) return {host:'', login:'', password:''};
+    try{
+      // remove surrounding whitespace
+      let s = String(url).trim();
+      // Remove /live from the end if present
+      s = s.replace(/\/live$/i, '');
+      // make sure scheme exists for parsing
+      if(!/^\w+:\/\//.test(s)) s = 'rtsp://' + s;
+      // regex: scheme://[user:pass@]host/path
+      const m = s.match(/^(\w+:\/\/)(?:([^:@\/]+)(?::([^@\/]+))?@)?(.+)$/);
+      if(!m) return {host: s, login:'', password:''};
+      return {host: m[4], login: m[2]||'', password: m[3]||''};
+    }catch(e){ return {host: url, login:'', password:''}; }
+  }
+
+  const parsed = parseRtsp(cam.ip_camera || '');
+
   div.innerHTML = `
     <div class="row"><div><strong>Камера #${cam.id}</strong></div></div>
-    <div class="row"><div>IP/URL</div><div><input type="text" class="ip-input" value="${cam.ip_camera || ''}" style="width:100%" disabled></div></div>
+    <div class="row"><div>IP/Host</div><div><input type="text" class="ip-input" value="${parsed.host||''}" style="width:100%" disabled></div></div>
+    <div class="row"><div>Логин</div><div><input type="text" class="login-input" value="${parsed.login||''}" style="width:100%" disabled></div></div>
+    <div class="row"><div>Пароль</div><div><input type="password" class="pass-input" value="${parsed.password||''}" style="width:100%" disabled></div></div>
     <div class="row"><div>Тип</div><div><select class="type-select" style="width:100%" disabled></select></div></div>
     <div class="row"><div></div><div><button class="edit-camera" data-mode="view">Изменить</button></div></div>
   `;
@@ -203,7 +213,11 @@ function renderCameraForm(container, cam){
   // edit/save toggle
   const editBtn = div.querySelector('.edit-camera');
   const ipInput = div.querySelector('.ip-input');
+  const loginInput = div.querySelector('.login-input');
+  const passInput = div.querySelector('.pass-input');
   ipInput.disabled = true;
+  loginInput.disabled = true;
+  passInput.disabled = true;
   sel.disabled = true;
 
   editBtn.addEventListener('click', async ()=>{
@@ -212,19 +226,33 @@ function renderCameraForm(container, cam){
       editBtn.textContent = 'Сохранить';
       editBtn.dataset.mode = 'edit';
       ipInput.disabled = false;
+      loginInput.disabled = false;
+      passInput.disabled = false;
       sel.disabled = false;
       ipInput.focus();
       return;
     }
 
-    // save mode
-    const ip = ipInput.value.trim();
+    // save mode — build RTSP URL from fields and send as ip_camera
+    const hostPart = ipInput.value.trim();
+    const login = loginInput.value.trim();
+    const pass = passInput.value;
     const typeId = sel.value;
+
+    if(!hostPart){ flash('IP/Host обязателен'); return; }
+
+    // normalize hostPart (remove scheme and credentials if present)
+    let hp = hostPart.replace(/^\s+|\s+$/g, '');
+    hp = hp.replace(/^\w+:\/\//,'');
+    hp = hp.replace(/^[^@]+@/,'');
+    // build full url with /live at the end
+    const full = 'rtsp://' + (login ? (encodeURIComponent(login) + (pass ? ':' + encodeURIComponent(pass) : '') + '@') : '') + hp + '/live';
+
     try{
       const resp = await fetch('cameras_api.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: cam.id, ip_camera: ip, camera_type_id: typeId })
+        body: JSON.stringify({ id: cam.id, ip_camera: full, camera_type_id: typeId })
       });
       if(!resp.ok) { flash('Ошибка сохранения камеры'); return; }
       const r = await resp.json();
@@ -234,6 +262,8 @@ function renderCameraForm(container, cam){
         editBtn.textContent = 'Изменить';
         editBtn.dataset.mode = 'view';
         ipInput.disabled = true;
+        loginInput.disabled = true;
+        passInput.disabled = true;
         sel.disabled = true;
         // refresh list
         loadCamerasForSection(container.dataset.section);
@@ -246,12 +276,14 @@ function renderCameraForm(container, cam){
   container.appendChild(div);
 }
 
-async function loadCamerasForSection(sectionId){
-  const container = document.getElementById(sectionId + '-cameras');
+async function loadCamerasForWarehouse(wid, sectionId){
+  const container = document.getElementById('preview-cameras');
   if(!container) return;
   container.innerHTML = '<div class="muted">Загрузка камер...</div>';
   await fetchCameraTypes();
-  const wid = SECTION_TO_WAREHOUSE[sectionId];
+  CURRENT_WAREHOUSE_ID = wid;
+  // update preview image
+  const pi = document.getElementById('preview-img'); if(pi) pi.src = sectionImageFor(sectionId);
   try{
     const resp = await fetch('cameras_api.php?warehouse_id=' + encodeURIComponent(wid), { cache: 'no-store' });
     if(!resp.ok){ container.innerHTML = '<div class="muted">Ошибка загрузки</div>'; return; }
@@ -259,16 +291,125 @@ async function loadCamerasForSection(sectionId){
     const cams = data.cameras || [];
     container.innerHTML = '';
     if(cams.length === 0){ container.innerHTML = '<div class="muted">Камеры не настроены для этого склада</div>'; return; }
+    cams.forEach(cam => renderCameraForm(container, cam));
+  }catch(e){ console.error(e); container.innerHTML = '<div class="muted">Ошибка загрузки</div>'; }
+}
+
+async function loadCamerasForSection(sectionId){
+  const container = document.getElementById('preview-cameras');
+  if(!container) return;
+  container.innerHTML = '<div class="muted">Загрузка камер...</div>';
+  await fetchCameraTypes();
+  const wid = SECTION_TO_WAREHOUSE[sectionId];
+  // update preview image
+  const pi = document.getElementById('preview-img'); if(pi) pi.src = sectionImageFor(sectionId);
+  try{
+    const resp = await fetch('cameras_api.php?warehouse_id=' + encodeURIComponent(wid), { cache: 'no-store' });
+    if(!resp.ok){ container.innerHTML = '<div class="muted">Ошибка загрузки</div>'; return; }
+    const data = await resp.json();
+    const cams = data.cameras || [];
+    container.innerHTML = '';
+    if(cams.length === 0){ container.innerHTML = '<div class="muted">Камеры не настроены для этого склада</div>'; container.dataset.section = sectionId; return; }
     // store section id for reload
     container.dataset.section = sectionId;
     cams.forEach(cam => renderCameraForm(container, cam));
   }catch(e){ console.error(e); container.innerHTML = '<div class="muted">Ошибка загрузки</div>'; }
 }
 
-// on initial load, load cameras for saved section
+async function loadAllCameras(){
+  const container = document.getElementById('preview-cameras');
+  if(!container) return;
+  container.innerHTML = '<div class="muted">Загрузка камер...</div>';
+  await fetchCameraTypes();
+  container.innerHTML = '';
+  
+  try{
+    for(const [sectionId, wid] of Object.entries(SECTION_TO_WAREHOUSE)) {
+      const resp = await fetch('cameras_api.php?warehouse_id=' + encodeURIComponent(wid), { cache: 'no-store' });
+      if(!resp.ok) continue;
+      const data = await resp.json();
+      const cams = data.cameras || [];
+      
+      if(cams.length > 0) {
+        // Add warehouse section header
+        const header = document.createElement('div');
+        header.style.marginTop = '14px';
+        header.style.marginBottom = '8px';
+        header.innerHTML = `<strong style="color:#666;font-size:0.95rem;">${WAREHOUSE_NAMES[wid] || 'Склад ' + wid}</strong>`;
+        container.appendChild(header);
+        
+        cams.forEach(cam => renderCameraForm(container, cam));
+      }
+    }
+    
+    if(container.children.length === 0) {
+      container.innerHTML = '<div class="muted">Камеры не настроены</div>';
+    }
+  }catch(e){ console.error(e); container.innerHTML = '<div class="muted">Ошибка загрузки</div>'; }
+}
+
+// Back button — save current section and navigate to index with fade
+document.getElementById('back-btn').addEventListener('click', ()=>{
+  // Save the currently active section and navigate back with explicit param
+  const activeSection = document.querySelector('header button.tab-btn.active');
+  const sectionId = activeSection ? activeSection.dataset.section : (sessionStorage.getItem('currentSection') || 'buffer');
+  // Also keep sessionStorage in sync
+  sessionStorage.setItem('currentSection', sectionId);
+  document.body.style.opacity = '0';
+  document.body.style.transition = 'opacity 200ms ease';
+  setTimeout(()=> { window.location.href = 'index.html'; }, 200);
+});
+
+// header tab switching for warehouses — load cameras for selected warehouse
+document.querySelectorAll('header .tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('header .tab-btn').forEach(b=> b.classList.remove('active'));
+    btn.classList.add('active');
+    // change preview image
+    const sec = btn.dataset.section;
+    const pi = document.getElementById('preview-img');
+    if(pi) pi.src = sectionImageFor(sec);
+    // save selection so when opening settings from main it stays consistent
+    sessionStorage.setItem('currentSection', sec);
+    // Load cameras for this warehouse when clicking a warehouse tab
+    const wid = SECTION_TO_WAREHOUSE[sec];
+    loadCamerasForWarehouse(wid, sec);
+  });
+});
+
 document.addEventListener('DOMContentLoaded', ()=>{
-  const cur = sessionStorage.getItem('currentSection') || 'buffer';
-  loadCamerasForSection(cur);
+  const right = document.getElementById('right-sections');
+  // Build right panel with components (only Cameras for now)
+  const components = [
+    { id: 'cameras', label: '🎥 Камеры', icon: '📷' }
+  ];
+  
+  components.forEach(comp => {
+    const btn = document.createElement('button');
+    btn.className = 'tab-btn';
+    if(comp.id === 'cameras') btn.classList.add('active');
+    btn.style.textAlign = 'left';
+    btn.style.fontSize = '1rem';
+    btn.textContent = comp.label;
+    btn.dataset.component = comp.id;
+    btn.addEventListener('click', ()=>{
+      // mark active in right panel
+      right.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      // For now only cameras, so just ensure cameras are loaded for current warehouse
+      const activeWarehouse = document.querySelector('header .tab-btn.active');
+      if(activeWarehouse) {
+        const wid = SECTION_TO_WAREHOUSE[activeWarehouse.dataset.section];
+        loadCamerasForWarehouse(wid, activeWarehouse.dataset.section);
+      }
+    });
+    right.appendChild(btn);
+  });
+  
+  // Load cameras for saved section on page load
+  const savedSection = sessionStorage.getItem('currentSection') || 'buffer';
+  const wid = SECTION_TO_WAREHOUSE[savedSection];
+  loadCamerasForWarehouse(wid, savedSection);
 });
 
 // simple notifier
