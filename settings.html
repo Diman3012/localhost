@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Настройки — Мониторинг (ч/б)</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body.settings-page {
+      background: linear-gradient(180deg, #f5f5f5, #eee);
+    }
+    .settings-page header {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      padding: 10px;
+      background: #222;
+      color: #fff;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .settings-page .tab-btn {
+      background: transparent;
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.06);
+      padding: 10px 16px;
+      cursor: pointer;
+      border-radius: 8px;
+      transition: all 180ms ease;
+      font-weight: 600;
+    }
+    .settings-page .tab-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.35); }
+    .settings-page .tab-btn.active { background: #555; }
+    .settings-page .back-btn {
+      background: transparent;
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.2);
+      padding: 8px 14px;
+      cursor: pointer;
+      border-radius: 6px;
+      font-weight: 600;
+      transition: all 180ms ease;
+      margin-right: auto;
+    }
+    .settings-page .back-btn:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+    .settings-page main {
+      padding: 20px;
+      max-width: 1200px;
+      margin: 16px auto;
+    }
+    .settings-page .section {
+      display: none;
+      gap: 18px;
+      flex-wrap: wrap;
+    }
+    .settings-page .section.active {
+      display: flex;
+    }
+    .settings-page .camera {
+      width: 420px;
+      min-width: 280px;
+      height: 320px;
+      background: var(--muted);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      overflow: hidden;
+      border-radius: 8px;
+      border: 2px solid rgba(0,0,0,0.07);
+      box-shadow: 0 6px 18px rgba(0,0,0,0.12) inset;
+    }
+    .settings-page .camera img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+  </style>
+</head>
+<body class="settings-page">
+<header>
+  <button class="tab-btn active" data-section="buffer">Буфферн склад СПО</button>
+  <button class="tab-btn" data-section="south">Южный склад анодов ОО</button>
+  <button class="tab-btn" data-section="north">Северный склад анодов ОО</button>
+  <button class="tab-btn" data-section="ready">Склад готовой продукции</button>
+  <div style="flex:1"></div>
+  <button class="back-btn" id="back-btn">Назад →</button>
+</header>
+
+<main>
+  <section id="buffer" class="section active">
+    <div class="camera" tabindex="0" aria-label="Камера Буфферн склад СПО">
+      <img src="1.jpg" alt="Камера Буфферн склад СПО">
+    </div>
+  </section>
+  <section id="south" class="section">
+    <div class="camera" tabindex="0" aria-label="Камера Южный склад анодов ОО">
+      <img src="2.jpg" alt="Камера Южный склад анодов ОО">
+    </div>
+  </section>
+  <section id="north" class="section">
+    <div class="camera" tabindex="0" aria-label="Камера Северный склад анодов ОО">
+      <img src="3.jpg" alt="Камера Северный склад анодов ОО">
+    </div>
+  </section>
+  <section id="ready" class="section">
+    <div class="camera" tabindex="0" aria-label="Камера Склад готовой продукции">
+      <img src="4.jpg" alt="Камера Склад готовой продукции">
+    </div>
+  </section>
+</main>
+
+<div id="fullscreen" class="fullscreen" aria-hidden="true">
+  <span class="close-btn" role="button" aria-label="Закрыть">&times;</span>
+  <img src="" alt="Full Image">
+</div>
+
+<script>
+// Fade in on page load with minimal animation
+window.addEventListener('load', ()=>{
+  document.body.style.opacity = '1';
+  document.body.style.transition = 'opacity 150ms ease';
+});
+document.body.style.opacity = '0';
+
+// Restore section from sessionStorage
+const savedSection = sessionStorage.getItem('currentSection') || 'buffer';
+const tabToActivate = document.querySelector(`[data-section="${savedSection}"]`);
+if(tabToActivate) {
+  document.querySelectorAll('.tab-btn').forEach(b=> b.classList.remove('active'));
+  tabToActivate.classList.add('active');
+  document.querySelectorAll('.section').forEach(s=> s.classList.remove('active'));
+  document.getElementById(savedSection).classList.add('active');
+}
+
+// Back button — navigate to index with fade
+document.getElementById('back-btn').addEventListener('click', ()=>{
+  document.body.style.opacity = '0';
+  document.body.style.transition = 'opacity 200ms ease';
+  setTimeout(()=> { window.location.href = 'index.html'; }, 200);
+});
+
+// Tab switching
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=> b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.section').forEach(s=> s.classList.remove('active'));
+    document.getElementById(btn.dataset.section).classList.add('active');
+  });
+});
+
+// Fullscreen for images
+function openFullscreen(src){
+  const fs = document.getElementById('fullscreen');
+  fs.style.display='flex'; fs.setAttribute('aria-hidden','false');
+  fs.querySelector('img').src = src;
+}
+document.querySelector('.close-btn').addEventListener('click', ()=>{ 
+  const fs = document.getElementById('fullscreen'); 
+  fs.style.display='none'; 
+  fs.setAttribute('aria-hidden','true'); 
+});
+document.getElementById('fullscreen').addEventListener('click',(e)=>{ 
+  if(e.target.id==='fullscreen') { 
+    e.currentTarget.style.display='none'; 
+    e.currentTarget.setAttribute('aria-hidden','true'); 
+  } 
+});
+
+// Click/keyboard on camera
+document.querySelectorAll('.camera').forEach(cam=>{
+  const img = cam.querySelector('img');
+  cam.addEventListener('click', ()=> openFullscreen(img.src));
+  cam.addEventListener('keydown', (e)=> { 
+    if(e.key==='Enter'||e.key===' ') openFullscreen(img.src); 
+  });
+});
+</script>
+</body>
+</html>
