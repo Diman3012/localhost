@@ -25,12 +25,11 @@
       background: transparent;
       color: #fff;
       border: 1px solid rgba(255,255,255,0.06);
-      padding: 12px 18px;
+      padding: 10px 16px;
       cursor: pointer;
       border-radius: 8px;
       transition: all 180ms ease;
       font-weight: 600;
-      font-size: 1.05rem;
     }
     .settings-page .tab-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.35); }
     .settings-page .tab-btn.active { background: #555; }
@@ -38,9 +37,9 @@
       background: transparent;
       color: #fff;
       border: 1px solid rgba(255,255,255,0.2);
-      padding: 8px 14px;
+      padding: 10px 16px;
       cursor: pointer;
-      border-radius: 6px;
+      border-radius: 8px;
       font-weight: 600;
       transition: all 180ms ease;
       margin-right: auto;
@@ -60,9 +59,10 @@
       display: flex;
     }
     .settings-page .camera {
-      width: 100%;
+      /* Match main page camera size */
+      width: 420px;
       min-width: 280px;
-      height: 220px;
+      height: 320px;
       background: var(--muted);
       display: flex;
       justify-content: center;
@@ -91,17 +91,17 @@
   <button class="back-btn" id="back-btn">Назад →</button>
 </header>
 
-<main>
-  <div class="settings-main" style="display:flex;gap:18px;max-width:1200px;margin:16px auto;">
-    <div class="preview-column" style="flex:1;min-width:280px;">
+<main class="container">
+  <div class="settings-main">
+    <div class="preview-column">
       <div class="camera" tabindex="0" aria-label="Превью камеры">
         <img id="preview-img" src="1.jpg" alt="Превью">
       </div>
       <div class="cameras-list" id="preview-cameras" style="margin-top:14px;"></div>
     </div>
 
-    <aside class="right-panel" style="width:320px;">
-      <div style="background:#fff;border-radius:8px;padding:12px;box-shadow:0 6px 18px rgba(0,0,0,0.04);">
+    <aside class="right-panel">
+      <div class="right-box">
         <strong style="display:block;margin-bottom:10px;">Настройки</strong>
         <div id="right-sections" style="display:flex;flex-direction:column;gap:8px;"></div>
       </div>
@@ -266,7 +266,10 @@ function renderCameraForm(container, cam){
         passInput.disabled = true;
         sel.disabled = true;
         // refresh list
-        loadCamerasForSection(container.dataset.section);
+          // reload cameras for current warehouse (use session or CURRENT_WAREHOUSE_ID)
+          const sec2 = sessionStorage.getItem('currentSection') || 'buffer';
+          const widReload = CURRENT_WAREHOUSE_ID || SECTION_TO_WAREHOUSE[sec2];
+          if(widReload) loadCamerasForWarehouse(widReload, sec2);
       } else {
         flash('Сохранение неуспешно');
       }
@@ -360,7 +363,7 @@ document.getElementById('back-btn').addEventListener('click', ()=>{
   setTimeout(()=> { window.location.href = 'index.html'; }, 200);
 });
 
-// header tab switching for warehouses — load cameras for selected warehouse
+// header tab switching for warehouses — load cameras for selected warehouse only
 document.querySelectorAll('header .tab-btn').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     document.querySelectorAll('header .tab-btn').forEach(b=> b.classList.remove('active'));
@@ -371,9 +374,17 @@ document.querySelectorAll('header .tab-btn').forEach(btn=>{
     if(pi) pi.src = sectionImageFor(sec);
     // save selection so when opening settings from main it stays consistent
     sessionStorage.setItem('currentSection', sec);
-    // Load cameras for this warehouse when clicking a warehouse tab
+    // If a component is active (e.g. cameras) then load corresponding settings,
+    // otherwise clear the settings area and wait for user to click a component.
+    const activeComp = document.querySelector('#right-sections button.active');
     const wid = SECTION_TO_WAREHOUSE[sec];
-    loadCamerasForWarehouse(wid, sec);
+    CURRENT_WAREHOUSE_ID = wid;
+    const container = document.getElementById('preview-cameras');
+    if(activeComp && activeComp.dataset.component === 'cameras'){
+      loadCamerasForWarehouse(wid, sec);
+    } else {
+      if(container) container.innerHTML = '<div class="muted">Выберите компонент справа, чтобы настроить</div>';
+    }
   });
 });
 
@@ -387,7 +398,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   components.forEach(comp => {
     const btn = document.createElement('button');
     btn.className = 'tab-btn';
-    if(comp.id === 'cameras') btn.classList.add('active');
+    // do not auto-activate components (user must click to open settings)
     btn.style.textAlign = 'left';
     btn.style.fontSize = '1rem';
     btn.textContent = comp.label;
@@ -406,10 +417,18 @@ document.addEventListener('DOMContentLoaded', ()=>{
     right.appendChild(btn);
   });
   
-  // Load cameras for saved section on page load
+  // Set active warehouse tab from session (but DO NOT auto-load component settings)
   const savedSection = sessionStorage.getItem('currentSection') || 'buffer';
+  document.querySelectorAll('header .tab-btn').forEach(b=> b.classList.remove('active'));
+  const headBtn = document.querySelector(`header .tab-btn[data-section="${savedSection}"]`);
+  if(headBtn) headBtn.classList.add('active');
+  // show preview image for saved section
   const wid = SECTION_TO_WAREHOUSE[savedSection];
-  loadCamerasForWarehouse(wid, savedSection);
+  CURRENT_WAREHOUSE_ID = wid;
+  const pi = document.getElementById('preview-img'); if(pi) pi.src = sectionImageFor(savedSection);
+  // leave preview-cameras empty and prompt user to choose a component
+  const container = document.getElementById('preview-cameras');
+  if(container) container.innerHTML = '<div class="muted">Выберите компонент справа, чтобы настроить</div>';
 });
 
 // simple notifier
