@@ -12,7 +12,7 @@ html, body {
   height: 100%;
   margin: 0;
   font-family: Inter, Arial, Helvetica, sans-serif;
-  background: linear-gradient(180deg, var(--bg), #eee);
+  background: var(--bg);
   color: var(--dark);
   -webkit-font-smoothing: antialiased;
 }
@@ -45,13 +45,26 @@ header {
 .tab-btn.active { background: #555; }
 
 main.container { padding: 20px; max-width: 1200px; margin: 16px auto; position: relative; }
-.section { display: none; padding: 18px; gap: 18px; }
+.section { display: none; padding: 18px; gap: 18px; position: relative; }
 .section.active { display: flex; flex-direction: column; }
 .content { display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-start; }
 .camera { width: 420px; min-width: 280px; height: 320px; background: var(--muted); display: flex; justify-content: center; align-items: center; cursor: pointer; overflow: hidden; border-radius: 8px; border: 2px solid rgba(0,0,0,0.07); box-shadow: 0 6px 18px rgba(0,0,0,0.12) inset; }
 .camera img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* Settings page: slightly wider, 16:9 preview that aligns with camera-form */
+.settings-page .camera { width: calc(100% + 40px); background: var(--muted); display: block; cursor: pointer; overflow: hidden; border-radius: 8px; border: 2px solid rgba(0,0,0,0.07); box-shadow: 0 6px 18px rgba(0,0,0,0.12) inset; aspect-ratio: 16 / 9; margin-left: -20px; margin-right: -20px; box-sizing: border-box; }
+.settings-page .camera img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .info { flex: 1; min-width: 260px; display: flex; flex-direction: column; gap: 10px; }
 .info .row { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 10px; background: var(--panel); border-radius: 8px; }
+  .cameras-list { margin-top: 14px; }
+  .cameras-list { margin-top: 14px; display:flex; flex-direction:column; gap:10px; width:100%; }
+  .camera-form { background: #fff; border-radius: 8px; padding: 10px; margin-bottom: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.04); width:100%; box-sizing:border-box; }
+  /* when on settings page, expand camera-form a bit to match the wider preview */
+  .settings-page .camera-form { max-width: calc(100% + 40px); margin-left: -20px; margin-right: -20px; }
+  .camera-form .row { display:flex; gap:12px; align-items:center; padding:6px 0; }
+  .camera-form .row > div:first-child { width: 160px; flex: 0 0 160px; color: var(--mid); font-weight: 600; }
+  .camera-form .row > div:last-child { flex: 1 1 auto; display: flex; align-items: center; }
+  .camera-form .row:last-child > div:last-child { justify-content: flex-end; }
 .info .row small { color: var(--mid); }
 .info .big { font-size: 1.15rem; font-weight: 700; }
 
@@ -60,6 +73,15 @@ thead { background: #f1f1f1; }
 th, td { padding: 8px 6px; border-bottom: 1px solid #e6e6e6; text-align: center; font-size: 0.95rem; }
 tbody tr:hover { background: rgba(0,0,0,0.02); }
 tbody { max-height: 400px; display: block; overflow: auto; }
+  .camera-form input[type="text"] { padding:6px 8px; border:1px solid #ddd; border-radius:6px; }
+  .camera-form select { padding:6px 8px; border:1px solid #ddd; border-radius:6px; }
+  .camera-form button.save-camera, .camera-form .edit-camera { padding:8px 12px; background:#222; color:#fff; border:none; border-radius:6px; cursor:pointer; min-width:110px; }
+  .camera-form .edit-camera[disabled], .camera-form button[disabled] { opacity: 0.6; cursor: default; }
+  .camera-form input[disabled], .camera-form select[disabled] { background:#fafafa; color:#666; }
+  /* camera types panel */
+  #camera-types-panel { margin-top: 6px; }
+  #camera-types-list .type-item input { width: 100%; }
+  #camera-types-list .type-item .save-type { background:#222; color:#fff; border:none; }
 thead, tbody tr { display: table; width: 100%; table-layout: fixed; }
 thead th { padding: 10px; font-weight: 700; }
 
@@ -73,8 +95,13 @@ thead th { padding: 10px; font-weight: 700; }
   tbody { max-height: 300px; }
 }
 
+/* ensure negative margins don't overflow on small screens */
+@media (max-width: 600px) {
+  .camera { width: 100%; margin-left: 0; margin-right: 0; }
+}
+
 tbody::-webkit-scrollbar { width: 10px; }
-tbody::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #ddd, #bbb); border-radius: 8px; }
+tbody::-webkit-scrollbar-thumb { background: #ccc; border-radius: 8px; }
 
 .muted { color: var(--mid); }
 .pill { background: #222; color: #fff; padding: 6px 10px; border-radius: 999px; font-size: 0.85rem; }
@@ -82,15 +109,10 @@ img.tiny { height: 48px; max-width: 120px; object-fit: cover; cursor: pointer; b
 td.left { text-align: left; padding-left: 8px; }
 .no-data { text-align: center; padding: 20px; color: var(--mid); font-style: italic; }
 
-/* Settings panel and button */
-.settings { position: absolute; top: 8px; right: 8px; z-index: 250; }
-.settings-btn-img { width: 40px; height: 40px; object-fit: contain; cursor: pointer; display:block; border-radius:8px; box-shadow: 0 8px 20px rgba(0,0,0,0.08); background: #fff; padding:6px; }
-.settings-btn-img:active { transform: scale(0.96); }
-.settings-btn-img.rotating { animation:gear-rotate 520ms linear; }
-/* Settings button wrapper */
-.settings-btn-wrapper { position: fixed; top: 56px; right: 18px; z-index: 300; }
-.settings-btn-img { width: 42px; height: 42px; object-fit: contain; cursor: pointer; display:block; border-radius:6px; box-shadow: 0 8px 20px rgba(0,0,0,0.06); background: transparent; padding:0; transition: transform 260ms cubic-bezier(.2,.9,.2,1), opacity 180ms ease; }
-.settings-btn-img:active { transform: scale(0.96); }
-.settings-btn-img.rotating { animation: gear-rotate 420ms ease-out; }
+/* Settings button - icon in header */
+#settings-btn { width: 36px; height: 36px; object-fit: contain; cursor: pointer; display: block; opacity: 0.7; transition: opacity 200ms ease, transform 260ms cubic-bezier(.2,.9,.2,1); }
+#settings-btn:hover { opacity: 1; transform: scale(1.1); }
+#settings-btn:active { transform: scale(0.95); }
+#settings-btn.rotating { animation: gear-rotate 420ms ease-out; }
 
 @keyframes gear-rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }

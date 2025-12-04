@@ -14,11 +14,8 @@
   <button class="tab-btn" data-section="ready">Склад готовой продукции</button>
   <div style="flex:1"></div>
   <div class="pill" id="tz-indicator">Волгоград</div>
-</header>
-
-<div class="settings-btn-wrapper">
   <img id="settings-btn" class="settings-btn-img" src="settings.png" alt="Настройки" role="button" tabindex="0">
-</div>
+</header>
 
 <main class="container">
   <section id="buffer" class="section active"></section>
@@ -108,12 +105,16 @@ function createSection(id, title){
 const sections = { buffer: "Буфферн склад СПО", south: "Южный склад анодов ОО", north: "Северный склад анодов ОО", ready: "Склад готовой продукции" };
 Object.entries(sections).forEach(([id,title])=> createSection(id,title));
 
+// Initial state is the markup defaults (first tab/section active).
+// Do not restore from sessionStorage here — always show the first section on load.
+
 document.querySelectorAll(".tab-btn").forEach(btn=>{
   btn.addEventListener("click", ()=>{
     document.querySelectorAll(".tab-btn").forEach(b=>b.classList.remove("active"));
     btn.classList.add("active");
     document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
     document.getElementById(btn.dataset.section).classList.add("active");
+    // Do not persist selection to sessionStorage here — keep main page default behavior
   });
 });
 

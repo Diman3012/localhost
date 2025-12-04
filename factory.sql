@@ -96,18 +96,32 @@ INSERT INTO `block_statuses` (`id`, `name`) VALUES
 CREATE TABLE `cameras` (
   `id` int(11) NOT NULL,
   `ip_camera` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `type` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL
+  `camera_type_id` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Дамп данных таблицы `cameras`
 --
 
-INSERT INTO `cameras` (`id`, `ip_camera`, `type`) VALUES
-(1, 'rtsp://192.168.0.101', 'учет'),
-(2, 'rtsp://192.168.0.102', 'номера'),
-(3, 'rtsp://192.168.0.103', 'учет'),
-(4, 'rtsp://192.168.0.104', 'номера');
+-- camera_type_id: 1 = учёт, 2 = номера
+INSERT INTO `cameras` (`id`, `ip_camera`, `camera_type_id`) VALUES
+(1, 'rtsp://192.168.0.101', 1),
+(2, 'rtsp://192.168.0.102', 2),
+(3, 'rtsp://192.168.0.103', 1),
+(4, 'rtsp://192.168.0.104', 2);
+
+CREATE TABLE `camera_types` (
+  `id` int(11) NOT NULL,
+  `description` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO `camera_types` (`id`, `description`) VALUES
+(1, 'учёт/наблюдение за складом'),
+(2, 'распознавание номеров автомобилей');
+
+-- Индексы таблицы `camera_types`
+ALTER TABLE `camera_types`
+  ADD PRIMARY KEY (`id`);
 
 -- --------------------------------------------------------
 
@@ -231,19 +245,18 @@ CREATE TABLE `warehouses` (
   `id` int(11) NOT NULL,
   `name` varchar(150) COLLATE utf8mb4_unicode_ci NOT NULL,
   `type` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `account_camera` int(11) DEFAULT NULL,
-  `camera_state_numbers` int(11) DEFAULT NULL
+  `account_camera` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Дамп данных таблицы `warehouses`
 --
 
-INSERT INTO `warehouses` (`id`, `name`, `type`, `account_camera`, `camera_state_numbers`) VALUES
-(1, 'Буферный склад СПО', 'буферный', 1, 2),
-(2, 'Южный склад анодов ОО', 'аноды', 3, 4),
-(3, 'Северный склад анодов ОО', 'аноды', 1, 2),
-(4, 'Склад готовой продукции', 'готовая продукция', 3, 4);
+INSERT INTO `warehouses` (`id`, `name`, `type`, `account_camera`) VALUES
+(1, 'Буферный склад СПО', 'буферный', 1),
+(2, 'Южный склад анодов ОО', 'аноды', 2),
+(3, 'Северный склад анодов ОО', 'аноды', 3),
+(4, 'Склад готовой продукции', 'готовая продукция', 4);
 
 --
 -- Индексы сохранённых таблиц
@@ -275,6 +288,10 @@ ALTER TABLE `block_statuses`
 --
 ALTER TABLE `cameras`
   ADD PRIMARY KEY (`id`);
+
+-- index for camera_type_id
+ALTER TABLE `cameras`
+  ADD KEY `camera_type_id` (`camera_type_id`);
 
 --
 -- Индексы таблицы `event_log`
@@ -320,14 +337,13 @@ ALTER TABLE `warehouses`
   ADD KEY `camera_state_numbers` (`camera_state_numbers`);
 
 --
--- AUTO_INCREMENT для сохранённых таблиц
---
 
---
--- AUTO_INCREMENT для таблицы `admin_users`
---
 ALTER TABLE `admin_users`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+
+-- AUTO_INCREMENT для таблицы `camera_types`
+ALTER TABLE `camera_types`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT для таблицы `arrivals`
@@ -416,6 +432,9 @@ ALTER TABLE `packages`
 ALTER TABLE `warehouses`
   ADD CONSTRAINT `warehouses_ibfk_1` FOREIGN KEY (`account_camera`) REFERENCES `cameras` (`id`),
   ADD CONSTRAINT `warehouses_ibfk_2` FOREIGN KEY (`camera_state_numbers`) REFERENCES `cameras` (`id`);
+-- foreign key from cameras to camera_types
+ALTER TABLE `cameras`
+  ADD CONSTRAINT `cameras_ibfk_1` FOREIGN KEY (`camera_type_id`) REFERENCES `camera_types` (`id`);
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
