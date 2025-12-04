@@ -1,7 +1,7 @@
 <?php
-// db.php
+// db.php - Database connection for MySQL 8.0+
 $host = '127.0.0.1';
-$db   = 'factory';       // имя вашей БД из XML
+$db   = 'factory';
 $user = 'root';
 $pass = '';
 $charset = 'utf8mb4';
@@ -16,24 +16,17 @@ $options = [
 
 try {
     $pdo = new PDO($dsn, $user, $pass, $options);
-    // Ensure connection uses utf8mb4 and predictable session settings for newer MySQL
-    // This keeps behavior consistent across MySQL versions (5.5 -> 8.x)
-    // Disable strict ONLY_FULL_GROUP_BY style modes for compatibility with legacy queries
-    try {
-        $pdo->exec("SET NAMES 'utf8mb4'");
-        // clear sql_mode to avoid ONLY_FULL_GROUP_BY and other strict modes that differ between versions
-        $pdo->exec("SET SESSION sql_mode = ''");
-        // ensure timezone is session-local (optional)
-        $pdo->exec("SET time_zone = @@global.time_zone");
-    } catch (\Exception $e) {
-        // non-fatal: if server doesn't allow changing session variables, ignore
-    }
+    
+    // Set MySQL session variables for optimal MySQL 8.0 compatibility
+    $pdo->exec("SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci");
+    $pdo->exec("SET SESSION sql_mode = ''");
+    $pdo->exec("SET SESSION time_zone = '+00:00'");
+    
 } catch (\PDOException $e) {
-    // Если подключение не удалось — вернём json-ошибку и остановим выполнение.
     header('Content-Type: application/json; charset=utf-8');
     http_response_code(500);
     echo json_encode([
-        'error' => 'Ошибка подключения к базе данных',
+        'error' => 'database_connection_error',
         'message' => $e->getMessage()
     ], JSON_UNESCAPED_UNICODE);
     exit;

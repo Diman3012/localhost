@@ -1,24 +1,21 @@
 <?php
-// api.php
+// api.php - Warehouse monitoring API for MySQL 8.0+
 include 'db.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
-// Debug helper: ?debug=1 will return diagnostic information to help troubleshooting
+// Debug helper: ?debug=1 returns diagnostic information
 if (isset($_GET['debug']) && $_GET['debug']) {
     try {
         $diag = [];
-        $ver = $pdo->query("SELECT VERSION()")->fetchColumn();
-        $diag['mysql_version'] = $ver;
+        $diag['mysql_version'] = $pdo->query("SELECT VERSION()")->fetchColumn();
         $diag['sql_mode'] = $pdo->query("SELECT @@session.sql_mode")->fetchColumn();
-        // basic row counts
         $diag['counts'] = [
             'arrivals' => (int)$pdo->query("SELECT COUNT(*) FROM arrivals")->fetchColumn(),
             'packages' => (int)$pdo->query("SELECT COUNT(*) FROM packages")->fetchColumn(),
             'event_log' => (int)$pdo->query("SELECT COUNT(*) FROM event_log")->fetchColumn(),
             'statuses' => (int)$pdo->query("SELECT COUNT(*) FROM statuses")->fetchColumn()
         ];
-        // sample a single arrival row
         $diag['sample_arrival'] = $pdo->query("SELECT * FROM arrivals LIMIT 1")->fetch(PDO::FETCH_ASSOC);
         echo json_encode(['debug' => $diag], JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT);
     } catch (\Exception $e) {
@@ -28,7 +25,7 @@ if (isset($_GET['debug']) && $_GET['debug']) {
     exit;
 }
 
-// Карта warehouse_id => id секции в фронтенде
+// Warehouse to section mapping
 $section_map = [
     1 => 'buffer',
     2 => 'south',
@@ -37,84 +34,100 @@ $section_map = [
 ];
 
 $result = [];
+$verboseDebug = (isset($_GET['debug']) && $_GET['debug'] == 2);
+
+function safeExecute($stmt, $params, $sql = null) {
+    global $verboseDebug;
+    try {
+        $stmt->execute($params);
+        return true;
+    } catch (\Exception $e) {
+        if ($verboseDebug) {
+            http_response_code(500);
+            echo json_encode([
+                'error' => 'query_failed',
+                'message' => $e->getMessage(),
+                'sql' => $sql,
+                'params' => $params
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        throw $e;
+    }
+}
 
 try {
     foreach ($section_map as $warehouse_id => $section) {
-        // 1) trucks: уникальные state_number у arrivals, которые ещё не уехали
-        $stmt = $pdo->prepare("
-            SELECT COUNT(DISTINCT state_number) AS cnt
-            FROM arrivals
-            WHERE warehouse_id = :wid
-              AND (departed_at IS NULL OR departed_at = 'NULL')
-        ");
-        $stmt->execute([':wid' => $warehouse_id]);
+        // 1) Count of unique trucks (arrivals not departed yet)
+        $sql = "SELECT COUNT(DISTINCT state_number) AS cnt
+                FROM arrivals
+                WHERE warehouse_id = :wid AND departed_at IS NULL";
+        $stmt = $pdo->prepare($sql);
+        safeExecute($stmt, [':wid' => $warehouse_id], $sql);
         $trucks = (int) $stmt->fetchColumn();
 
-        // 2) in: суммарно blocks_count по пакетам у arrivals этого склада, у которых статус = 'выгрузка' (завезено)
-        $stmt = $pdo->prepare(
-            "SELECT COALESCE(SUM(p.blocks_count),0) AS sum_blocks
-             FROM packages p
-             JOIN arrivals a ON p.arrival_id = a.id
-             JOIN statuses s ON a.status_id = s.id
-             WHERE a.warehouse_id = :wid AND s.name COLLATE utf8mb4_general_ci = 'выгрузка'"
-        );
-        $stmt->execute([':wid' => $warehouse_id]);
+        // 2) Total blocks count for "выгрузка" status (loaded/received)
+        $sql = "SELECT COALESCE(SUM(p.blocks_count), 0) AS sum_blocks
+                FROM packages p
+                JOIN arrivals a ON p.arrival_id = a.id
+                JOIN statuses s ON a.status_id = s.id
+                WHERE a.warehouse_id = :wid AND s.name = 'выгрузка'";
+        $stmt = $pdo->prepare($sql);
+        safeExecute($stmt, [':wid' => $warehouse_id], $sql);
         $in = (int) $stmt->fetchColumn();
 
-        // 3) out: суммарно blocks_count по пакетам у arrivals этого склада, у которых статус = 'загрузка' (вывезено)
-        $stmt = $pdo->prepare(
-            "SELECT COALESCE(SUM(p.blocks_count),0) AS sum_blocks
-             FROM packages p
-             JOIN arrivals a ON p.arrival_id = a.id
-             JOIN statuses s ON a.status_id = s.id
-             WHERE a.warehouse_id = :wid AND s.name COLLATE utf8mb4_general_ci = 'загрузка'"
-        );
-        $stmt->execute([':wid' => $warehouse_id]);
+        // 3) Total blocks count for "загрузка" status (shipped/sent)
+        $sql = "SELECT COALESCE(SUM(p.blocks_count), 0) AS sum_blocks
+                FROM packages p
+                JOIN arrivals a ON p.arrival_id = a.id
+                JOIN statuses s ON a.status_id = s.id
+                WHERE a.warehouse_id = :wid AND s.name = 'загрузка'";
+        $stmt = $pdo->prepare($sql);
+        safeExecute($stmt, [':wid' => $warehouse_id], $sql);
         $out = (int) $stmt->fetchColumn();
 
-        // 4) последние 20 arrivals для этого склада
-        $stmt = $pdo->prepare(
-            "SELECT a.id, a.state_number, a.arrived_at, a.departed_at, a.camera_id, a.status_id, s.name AS status_name
-             FROM arrivals a
-             LEFT JOIN statuses s ON a.status_id = s.id
-             WHERE a.warehouse_id = :wid
-             ORDER BY a.arrived_at DESC
-             LIMIT 20"
-        );
-        $stmt->execute([':wid' => $warehouse_id]);
+        // 4) Last 20 arrivals for this warehouse
+        $sql = "SELECT a.id, a.state_number, a.arrived_at, a.departed_at,
+                       a.camera_id, a.status_id, s.name AS status_name
+                FROM arrivals a
+                LEFT JOIN statuses s ON a.status_id = s.id
+                WHERE a.warehouse_id = :wid
+                ORDER BY a.arrived_at DESC
+                LIMIT 20";
+        $stmt = $pdo->prepare($sql);
+        safeExecute($stmt, [':wid' => $warehouse_id], $sql);
         $arrivals_raw = $stmt->fetchAll();
 
-        $arrivals = [];
-        // подготовим несколько вспомогательных запросов
-        // выбираем первую и последнюю фотографию для заезда (если есть)
-        // Use != '' to avoid string 'NULL' or empty values; ensure ordering uses event_time
-        $firstPhotoStmt = $pdo->prepare(
-            "SELECT photo_path FROM event_log WHERE arrival_id = :aid AND photo_path != '' ORDER BY event_time ASC LIMIT 1"
-        );
-        $lastPhotoStmt = $pdo->prepare(
-            "SELECT photo_path FROM event_log WHERE arrival_id = :aid AND photo_path != '' ORDER BY event_time DESC LIMIT 1"
-        );
-        $pkgCountStmt = $pdo->prepare("
-            SELECT COUNT(*) AS cnt, COALESCE(SUM(blocks_count),0) AS blocks_sum
-            FROM packages
-            WHERE arrival_id = :aid
-        ");
+        // Prepare statements for photo and package queries
+        $sqlFirstPhoto = "SELECT photo_path FROM event_log 
+                         WHERE arrival_id = :aid AND photo_path IS NOT NULL AND photo_path != '' 
+                         ORDER BY event_time ASC LIMIT 1";
+        $sqlLastPhoto = "SELECT photo_path FROM event_log 
+                        WHERE arrival_id = :aid AND photo_path IS NOT NULL AND photo_path != '' 
+                        ORDER BY event_time DESC LIMIT 1";
+        $sqlPkg = "SELECT COUNT(*) AS cnt, COALESCE(SUM(blocks_count), 0) AS blocks_sum 
+                   FROM packages WHERE arrival_id = :aid";
+        
+        $firstPhotoStmt = $pdo->prepare($sqlFirstPhoto);
+        $lastPhotoStmt = $pdo->prepare($sqlLastPhoto);
+        $pkgCountStmt = $pdo->prepare($sqlPkg);
 
+        $arrivals = [];
         foreach ($arrivals_raw as $a) {
             $aid = (int)$a['id'];
 
-            // arrived_photo (первая имеющаяся фотография)
-            $firstPhotoStmt->execute([':aid' => $aid]);
+            // Get first photo
+            safeExecute($firstPhotoStmt, [':aid' => $aid], $sqlFirstPhoto);
             $arrived_photo = $firstPhotoStmt->fetchColumn();
-            if ($arrived_photo === false || $arrived_photo === '') $arrived_photo = null;
+            $arrived_photo = ($arrived_photo === false || $arrived_photo === null) ? null : (string)$arrived_photo;
 
-            // departed_photo (последняя имеющаяся фотография)
-            $lastPhotoStmt->execute([':aid' => $aid]);
+            // Get last photo
+            safeExecute($lastPhotoStmt, [':aid' => $aid], $sqlLastPhoto);
             $departed_photo = $lastPhotoStmt->fetchColumn();
-            if ($departed_photo === false || $departed_photo === '') $departed_photo = null;
+            $departed_photo = ($departed_photo === false || $departed_photo === null) ? null : (string)$departed_photo;
 
-            // packages count and blocks sum
-            $pkgCountStmt->execute([':aid' => $aid]);
+            // Get package info
+            safeExecute($pkgCountStmt, [':aid' => $aid], $sqlPkg);
             $pkgInfo = $pkgCountStmt->fetch();
             $packages_count = (int)($pkgInfo['cnt'] ?? 0);
             $blocks_sum = (int)($pkgInfo['blocks_sum'] ?? 0);
@@ -128,8 +141,8 @@ try {
                 'status_name' => $a['status_name'] ?? null,
                 'arrived_photo' => $arrived_photo,
                 'departed_photo' => $departed_photo,
-                'packages_count' => $packages_count,   // пакетов (строк)
-                'blocks_sum' => $blocks_sum           // анодов / блоков
+                'packages_count' => $packages_count,
+                'blocks_sum' => $blocks_sum
             ];
         }
 
@@ -142,6 +155,7 @@ try {
     }
 
     echo json_encode($result, JSON_UNESCAPED_UNICODE);
+
 } catch (\Exception $e) {
     http_response_code(500);
     echo json_encode(['error' => 'internal_error', 'message' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
