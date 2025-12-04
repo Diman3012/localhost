@@ -4,6 +4,30 @@ include 'db.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
+// Debug helper: ?debug=1 will return diagnostic information to help troubleshooting
+if (isset($_GET['debug']) && $_GET['debug']) {
+    try {
+        $diag = [];
+        $ver = $pdo->query("SELECT VERSION()")->fetchColumn();
+        $diag['mysql_version'] = $ver;
+        $diag['sql_mode'] = $pdo->query("SELECT @@session.sql_mode")->fetchColumn();
+        // basic row counts
+        $diag['counts'] = [
+            'arrivals' => (int)$pdo->query("SELECT COUNT(*) FROM arrivals")->fetchColumn(),
+            'packages' => (int)$pdo->query("SELECT COUNT(*) FROM packages")->fetchColumn(),
+            'event_log' => (int)$pdo->query("SELECT COUNT(*) FROM event_log")->fetchColumn(),
+            'statuses' => (int)$pdo->query("SELECT COUNT(*) FROM statuses")->fetchColumn()
+        ];
+        // sample a single arrival row
+        $diag['sample_arrival'] = $pdo->query("SELECT * FROM arrivals LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+        echo json_encode(['debug' => $diag], JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT);
+    } catch (\Exception $e) {
+        http_response_code(500);
+        echo json_encode(['error' => 'diag_failed', 'message' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+    }
+    exit;
+}
+
 // Карта warehouse_id => id секции в фронтенде
 $section_map = [
     1 => 'buffer',
