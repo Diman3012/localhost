@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Склады — Мониторинг (ч/б)</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header>
@@ -137,27 +137,32 @@ async function updateDashboard(){
       const section = data[id] || { trucks:0, in:0, out:0, arrivals:[] };
       const arrivals = section.arrivals || [];
       
-      // Считаем общие показатели на основе данных из таблицы
-      let totalInPackages = 0;
-      let totalInBlocks = 0;
-      let totalOutPackages = 0;
-      let totalOutBlocks = 0;
-      let trucks = arrivals.length;
-      
+      // Считаем общие показатели на основе статуса arrivals (status_name)
+      let totalInPackages = 0;   // "Завезено пакетов" (выгрузка)
+      let totalInBlocks = 0;     // "Завезено анодов" (выгрузка)
+      let totalOutPackages = 0;  // "Вывезено пакетов" (загрузка)
+      let totalOutBlocks = 0;    // "Вывезено анодов" (загрузка)
+      // Берём значение trucks из API (количество текущих грузовиков)
+      let trucks = section.trucks ?? 0;
+
       arrivals.forEach(a => {
-        const inPackages = a.packages_count ?? 0;
-        const inBlocks = a.blocks_sum ?? 0;
-        
-        totalInPackages += inPackages;
-        totalInBlocks += inBlocks;
-        
-        // Если грузовик убыл, считаем вывезенное
-        if (a.departed_at && a.departed_at !== 'NULL') {
-          totalOutPackages += inPackages;
-          totalOutBlocks += inBlocks;
+        const packages = a.packages_count ?? 0;
+        const blocks = a.blocks_sum ?? 0;
+        const status = (a.status_name || '').toLowerCase();
+
+        if (status === 'выгрузка') {
+          // разгрузка = завезено на склад
+          totalInPackages += packages;
+          totalInBlocks += blocks;
+        } else if (status === 'загрузка') {
+          // загрузка = вывезено со склада
+          totalOutPackages += packages;
+          totalOutBlocks += blocks;
+        } else {
+          // простой или неизвестный статус — не учитываем
         }
       });
-      
+
       // Обновляем сводные цифры
       document.getElementById(`${id}-trucks`).textContent = trucks;
       document.getElementById(`${id}-in`).textContent = `пакетов: ${totalInPackages} / анодов: ${totalInBlocks}`;
@@ -192,10 +197,23 @@ async function updateDashboard(){
             photoCell = '📷';
           }
 
-          const in_packages = a.packages_count ?? 0;
-          const in_blocks = a.blocks_sum ?? 0;
-          const out_packages = (a.departed_at && a.departed_at !== 'NULL') ? in_packages : 0;
-          const out_blocks = (a.departed_at && a.departed_at !== 'NULL') ? in_blocks : 0;
+          // Распределяем пакеты/блоки в зависимости от статуса (status_name)
+          const arrivalStatus = (a.status_name || '').toLowerCase();
+          const total_packages = a.packages_count ?? 0;
+          const total_blocks = a.blocks_sum ?? 0;
+          let in_packages = 0, in_blocks = 0, out_packages = 0, out_blocks = 0;
+
+          if (arrivalStatus === 'выгрузка') {
+            // разгрузка => завезено
+            in_packages = total_packages;
+            in_blocks = total_blocks;
+          } else if (arrivalStatus === 'загрузка') {
+            // загрузка => вывезено
+            out_packages = total_packages;
+            out_blocks = total_blocks;
+          } else {
+            // простой или неизвестный — всё 0
+          }
 
           rows += `<tr>
             <td>${idx+1}</td>

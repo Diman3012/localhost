@@ -26,48 +26,49 @@ try {
         $stmt->execute([':wid' => $warehouse_id]);
         $trucks = (int) $stmt->fetchColumn();
 
-        // 2) in: суммарно blocks_count по пакетам, связанных с arrivals этого склада
-        $stmt = $pdo->prepare("
-            SELECT COALESCE(SUM(p.blocks_count),0) AS sum_blocks
-            FROM packages p
-            JOIN arrivals a ON p.arrival_id = a.id
-            WHERE a.warehouse_id = :wid
-        ");
+        // 2) in: суммарно blocks_count по пакетам у arrivals этого склада, у которых статус = 'выгрузка' (завезено)
+        $stmt = $pdo->prepare(
+            "SELECT COALESCE(SUM(p.blocks_count),0) AS sum_blocks
+             FROM packages p
+             JOIN arrivals a ON p.arrival_id = a.id
+             JOIN statuses s ON a.status_id = s.id
+             WHERE a.warehouse_id = :wid AND LOWER(s.name) = 'выгрузка'"
+        );
         $stmt->execute([':wid' => $warehouse_id]);
         $in = (int) $stmt->fetchColumn();
 
-        // 3) out: суммарно blocks_count по пакетам у arrivals с departed_at IS NOT NULL
-        $stmt = $pdo->prepare("
-            SELECT COALESCE(SUM(p.blocks_count),0) AS sum_blocks
-            FROM packages p
-            JOIN arrivals a ON p.arrival_id = a.id
-            WHERE a.warehouse_id = :wid
-              AND a.departed_at IS NOT NULL
-              AND a.departed_at <> 'NULL'
-        ");
+        // 3) out: суммарно blocks_count по пакетам у arrivals этого склада, у которых статус = 'загрузка' (вывезено)
+        $stmt = $pdo->prepare(
+            "SELECT COALESCE(SUM(p.blocks_count),0) AS sum_blocks
+             FROM packages p
+             JOIN arrivals a ON p.arrival_id = a.id
+             JOIN statuses s ON a.status_id = s.id
+             WHERE a.warehouse_id = :wid AND LOWER(s.name) = 'загрузка'"
+        );
         $stmt->execute([':wid' => $warehouse_id]);
         $out = (int) $stmt->fetchColumn();
 
         // 4) последние 20 arrivals для этого склада
-        $stmt = $pdo->prepare("
-            SELECT a.id, a.state_number, a.arrived_at, a.departed_at, a.camera_id
-            FROM arrivals a
-            WHERE a.warehouse_id = :wid
-            ORDER BY a.arrived_at DESC
-            LIMIT 20
-        ");
+        $stmt = $pdo->prepare(
+            "SELECT a.id, a.state_number, a.arrived_at, a.departed_at, a.camera_id, a.status_id, s.name AS status_name
+             FROM arrivals a
+             LEFT JOIN statuses s ON a.status_id = s.id
+             WHERE a.warehouse_id = :wid
+             ORDER BY a.arrived_at DESC
+             LIMIT 20"
+        );
         $stmt->execute([':wid' => $warehouse_id]);
         $arrivals_raw = $stmt->fetchAll();
 
         $arrivals = [];
         // подготовим несколько вспомогательных запросов
-        $photoStmt = $pdo->prepare("
-            SELECT photo_path
-            FROM event_log
-            WHERE arrival_id = :aid AND event_type = :etype
-            ORDER BY event_time ASC
-            LIMIT 1
-        ");
+        // выбираем первую и последнюю фотографию для заезда (если есть)
+        $firstPhotoStmt = $pdo->prepare(
+            "SELECT photo_path FROM event_log WHERE arrival_id = :aid AND photo_path IS NOT NULL ORDER BY event_time ASC LIMIT 1"
+        );
+        $lastPhotoStmt = $pdo->prepare(
+            "SELECT photo_path FROM event_log WHERE arrival_id = :aid AND photo_path IS NOT NULL ORDER BY event_time DESC LIMIT 1"
+        );
         $pkgCountStmt = $pdo->prepare("
             SELECT COUNT(*) AS cnt, COALESCE(SUM(blocks_count),0) AS blocks_sum
             FROM packages
@@ -77,14 +78,14 @@ try {
         foreach ($arrivals_raw as $a) {
             $aid = (int)$a['id'];
 
-            // arrived_photo
-            $photoStmt->execute([':aid' => $aid, ':etype' => 'arrived_photo']);
-            $arrived_photo = $photoStmt->fetchColumn();
+            // arrived_photo (первая имеющаяся фотография)
+            $firstPhotoStmt->execute([':aid' => $aid]);
+            $arrived_photo = $firstPhotoStmt->fetchColumn();
             if ($arrived_photo === false) $arrived_photo = null;
 
-            // departed_photo
-            $photoStmt->execute([':aid' => $aid, ':etype' => 'departed_photo']);
-            $departed_photo = $photoStmt->fetchColumn();
+            // departed_photo (последняя имеющаяся фотография)
+            $lastPhotoStmt->execute([':aid' => $aid]);
+            $departed_photo = $lastPhotoStmt->fetchColumn();
             if ($departed_photo === false) $departed_photo = null;
 
             // packages count and blocks sum
@@ -98,6 +99,8 @@ try {
                 'state_number' => $a['state_number'],
                 'arrived_at' => $a['arrived_at'],
                 'departed_at' => $a['departed_at'],
+                'status_id' => isset($a['status_id']) ? (int)$a['status_id'] : null,
+                'status_name' => $a['status_name'] ?? null,
                 'arrived_photo' => $arrived_photo,
                 'departed_photo' => $departed_photo,
                 'packages_count' => $packages_count,   // пакетов (строк)
