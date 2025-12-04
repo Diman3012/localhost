@@ -4,48 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Склады — Мониторинг (ч/б)</title>
-  <style>
-    :root {
-      --bg: #f5f5f5;
-      --panel: #fff;
-      --muted: #ccc;
-      --dark: #111;
-      --mid: #666;
-      --accent: #222;
-      --glass: rgba(255,255,255,0.04);
-    }
-    html,body {height:100%; margin:0; font-family: Inter, Arial, Helvetica, sans-serif; background: linear-gradient(180deg,var(--bg),#eee); color: var(--dark); -webkit-font-smoothing:antialiased;}
-    header {display:flex; gap:6px; align-items:center; padding:10px; background:#222; color:#fff; box-shadow:0 2px 6px rgba(0,0,0,0.4); position:sticky; top:0; z-index:100;}
-    .tab-btn {background:transparent; color:#fff; border:1px solid rgba(255,255,255,0.06); padding:10px 16px; cursor:pointer; border-radius:8px; transition:all 180ms ease; font-weight:600;}
-    .tab-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.35);}
-    .tab-btn.active {background:#555;}
-    main.container {padding:20px; max-width:1200px; margin:16px auto;}
-    .section {display:none; padding:18px; gap:18px;}
-    .section.active {display:flex; flex-direction:column;}
-    .content {display:flex; gap:18px; flex-wrap:wrap; align-items:flex-start;}
-    .camera {width:420px; min-width:280px; height:320px; background:var(--muted); display:flex; justify-content:center; align-items:center; cursor:pointer; overflow:hidden; border-radius:8px; border:2px solid rgba(0,0,0,0.07); box-shadow: 0 6px 18px rgba(0,0,0,0.12) inset;}
-    .camera img {width:100%; height:100%; object-fit:cover; display:block;}
-    .info {flex:1; min-width:260px; display:flex; flex-direction:column; gap:10px;}
-    .info .row {display:flex; gap:10px; align-items:center; justify-content:space-between; padding:10px; background:var(--panel); border-radius:8px;}
-    .info .row small {color:var(--mid);}
-    .info .big {font-size:1.15rem; font-weight:700;}
-    table {width:100%; border-collapse:collapse; background:var(--panel); border-radius:8px; overflow:hidden;}
-    thead {background: #f1f1f1;}
-    th,td {padding:8px 6px; border-bottom:1px solid #e6e6e6; text-align:center; font-size:0.95rem;}
-    tbody tr:hover {background: rgba(0,0,0,0.02);}
-    tbody {max-height:400px; display:block; overflow:auto;}
-    thead, tbody tr {display:table; width:100%; table-layout:fixed;}
-    thead th {padding:10px; font-weight:700;}
-    .fullscreen {position:fixed; inset:0; background:rgba(0,0,0,0.92); display:none; align-items:center; justify-content:center; z-index:9999;}
-    .fullscreen img {max-width:92%; max-height:92%; border-radius:8px; box-shadow: 0 10px 50px rgba(0,0,0,0.7);}
-    .close-btn {position:absolute; top:18px; right:22px; color:#fff; font-size:34px; cursor:pointer;}
-    @media (max-width:900px){.camera{ width:100%; height:220px;} .content{ flex-direction:column;} tbody{ max-height:300px;}}
-    tbody::-webkit-scrollbar{width:10px;} tbody::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#ddd,#bbb); border-radius:8px;}
-    .muted { color:var(--mid); } .pill{ background:#222; color:#fff; padding:6px 10px; border-radius:999px; font-size:0.85rem; }
-    img.tiny { height:48px; max-width:120px; object-fit:cover; cursor:pointer; border-radius:4px; }
-    td.left { text-align:left; padding-left:8px; }
-    .no-data {text-align:center; padding:20px; color:var(--mid); font-style:italic;}
-  </style>
+  
 </head>
 <body>
 <header>
