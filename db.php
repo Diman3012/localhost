@@ -16,6 +16,18 @@ $options = [
 
 try {
     $pdo = new PDO($dsn, $user, $pass, $options);
+    // Ensure connection uses utf8mb4 and predictable session settings for newer MySQL
+    // This keeps behavior consistent across MySQL versions (5.5 -> 8.x)
+    // Disable strict ONLY_FULL_GROUP_BY style modes for compatibility with legacy queries
+    try {
+        $pdo->exec("SET NAMES 'utf8mb4'");
+        // clear sql_mode to avoid ONLY_FULL_GROUP_BY and other strict modes that differ between versions
+        $pdo->exec("SET SESSION sql_mode = ''");
+        // ensure timezone is session-local (optional)
+        $pdo->exec("SET time_zone = @@global.time_zone");
+    } catch (\Exception $e) {
+        // non-fatal: if server doesn't allow changing session variables, ignore
+    }
 } catch (\PDOException $e) {
     // Если подключение не удалось — вернём json-ошибку и остановим выполнение.
     header('Content-Type: application/json; charset=utf-8');

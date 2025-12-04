@@ -32,7 +32,7 @@ try {
              FROM packages p
              JOIN arrivals a ON p.arrival_id = a.id
              JOIN statuses s ON a.status_id = s.id
-             WHERE a.warehouse_id = :wid AND LOWER(s.name) = 'выгрузка'"
+             WHERE a.warehouse_id = :wid AND s.name COLLATE utf8mb4_general_ci = 'выгрузка'"
         );
         $stmt->execute([':wid' => $warehouse_id]);
         $in = (int) $stmt->fetchColumn();
@@ -43,7 +43,7 @@ try {
              FROM packages p
              JOIN arrivals a ON p.arrival_id = a.id
              JOIN statuses s ON a.status_id = s.id
-             WHERE a.warehouse_id = :wid AND LOWER(s.name) = 'загрузка'"
+             WHERE a.warehouse_id = :wid AND s.name COLLATE utf8mb4_general_ci = 'загрузка'"
         );
         $stmt->execute([':wid' => $warehouse_id]);
         $out = (int) $stmt->fetchColumn();
@@ -63,11 +63,12 @@ try {
         $arrivals = [];
         // подготовим несколько вспомогательных запросов
         // выбираем первую и последнюю фотографию для заезда (если есть)
+        // Use != '' to avoid string 'NULL' or empty values; ensure ordering uses event_time
         $firstPhotoStmt = $pdo->prepare(
-            "SELECT photo_path FROM event_log WHERE arrival_id = :aid AND photo_path IS NOT NULL ORDER BY event_time ASC LIMIT 1"
+            "SELECT photo_path FROM event_log WHERE arrival_id = :aid AND photo_path != '' ORDER BY event_time ASC LIMIT 1"
         );
         $lastPhotoStmt = $pdo->prepare(
-            "SELECT photo_path FROM event_log WHERE arrival_id = :aid AND photo_path IS NOT NULL ORDER BY event_time DESC LIMIT 1"
+            "SELECT photo_path FROM event_log WHERE arrival_id = :aid AND photo_path != '' ORDER BY event_time DESC LIMIT 1"
         );
         $pkgCountStmt = $pdo->prepare("
             SELECT COUNT(*) AS cnt, COALESCE(SUM(blocks_count),0) AS blocks_sum
@@ -81,12 +82,12 @@ try {
             // arrived_photo (первая имеющаяся фотография)
             $firstPhotoStmt->execute([':aid' => $aid]);
             $arrived_photo = $firstPhotoStmt->fetchColumn();
-            if ($arrived_photo === false) $arrived_photo = null;
+            if ($arrived_photo === false || $arrived_photo === '') $arrived_photo = null;
 
             // departed_photo (последняя имеющаяся фотография)
             $lastPhotoStmt->execute([':aid' => $aid]);
             $departed_photo = $lastPhotoStmt->fetchColumn();
-            if ($departed_photo === false) $departed_photo = null;
+            if ($departed_photo === false || $departed_photo === '') $departed_photo = null;
 
             // packages count and blocks sum
             $pkgCountStmt->execute([':aid' => $aid]);
