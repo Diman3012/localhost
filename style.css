@@ -44,7 +44,7 @@ header {
 .tab-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.35); }
 .tab-btn.active { background: #555; }
 
-main.container { padding: 20px; max-width: 1200px; margin: 16px auto; }
+main.container { padding: 20px; max-width: 1200px; margin: 16px auto; position: relative; }
 .section { display: none; padding: 18px; gap: 18px; }
 .section.active { display: flex; flex-direction: column; }
 .content { display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-start; }
@@ -81,3 +81,16 @@ tbody::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #ddd, #bbb)
 img.tiny { height: 48px; max-width: 120px; object-fit: cover; cursor: pointer; border-radius: 4px; }
 td.left { text-align: left; padding-left: 8px; }
 .no-data { text-align: center; padding: 20px; color: var(--mid); font-style: italic; }
+
+/* Settings panel and button */
+.settings { position: absolute; top: 8px; right: 8px; z-index: 250; }
+.settings-btn-img { width: 40px; height: 40px; object-fit: contain; cursor: pointer; display:block; border-radius:8px; box-shadow: 0 8px 20px rgba(0,0,0,0.08); background: #fff; padding:6px; }
+.settings-btn-img:active { transform: scale(0.96); }
+.settings-btn-img.rotating { animation:gear-rotate 520ms linear; }
+/* Settings button wrapper */
+.settings-btn-wrapper { position: fixed; top: 56px; right: 18px; z-index: 300; }
+.settings-btn-img { width: 42px; height: 42px; object-fit: contain; cursor: pointer; display:block; border-radius:6px; box-shadow: 0 8px 20px rgba(0,0,0,0.06); background: transparent; padding:0; transition: transform 260ms cubic-bezier(.2,.9,.2,1), opacity 180ms ease; }
+.settings-btn-img:active { transform: scale(0.96); }
+.settings-btn-img.rotating { animation: gear-rotate 420ms ease-out; }
+
+@keyframes gear-rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }

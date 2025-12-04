@@ -16,6 +16,10 @@
   <div class="pill" id="tz-indicator">Волгоград</div>
 </header>
 
+<div class="settings-btn-wrapper">
+  <img id="settings-btn" class="settings-btn-img" src="settings.png" alt="Настройки" role="button" tabindex="0">
+</div>
+
 <main class="container">
   <section id="buffer" class="section active"></section>
   <section id="south" class="section"></section>
@@ -254,6 +258,27 @@ flash("Время отображается по Московскому часо�
     if(e.key==="ArrowRight"){ tabs[(i+1)%tabs.length].focus();}
     if(e.key==="ArrowLeft"){ tabs[(i-1+tabs.length)%tabs.length].focus();}
   }));
+})();
+
+// Navigate to settings page on button click
+(() => {
+  const btn = document.getElementById('settings-btn');
+  if(!btn) return;
+
+  btn.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    // rotate the image
+    btn.classList.add('rotating');
+    // save current section to sessionStorage
+    const activeSection = document.querySelector('.section.active');
+    if(activeSection) {
+      sessionStorage.setItem('currentSection', activeSection.id);
+    }
+    // fade out and navigate
+    document.body.style.opacity = '0';
+    document.body.style.transition = 'opacity 200ms ease';
+    setTimeout(()=> { window.location.href = 'settings.html'; }, 200);
+  });
 })();
 </script>
 </body>
