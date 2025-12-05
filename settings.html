@@ -317,7 +317,7 @@ function renderCameraForm(container, cam){
   const parsed = parseRtsp(cam.ip_camera || '');
 
   div.innerHTML = `
-    <div class="row form-header"><div><strong>📷 Камера #${cam.id}</strong></div></div>
+    <div class="row form-header"><div><strong>📷 Камера</strong></div></div>
     <div class="row"><div>IP/Host</div><div><input type="text" class="ip-input" value="${parsed.host||''}" style="width:100%" disabled></div></div>
     <div class="row"><div>Логин</div><div><input type="text" class="login-input" value="${parsed.login||''}" style="width:100%" disabled></div></div>
     <div class="row"><div>Пароль</div><div><input type="password" class="pass-input" value="${parsed.password||''}" style="width:100%" disabled></div></div>
@@ -404,7 +404,7 @@ function renderCameraForm(container, cam){
   // Delete camera button
   const deleteBtn = div.querySelector('.delete-camera');
   deleteBtn.addEventListener('click', async ()=>{
-    if(!confirm(`Удалить камеру #${cam.id}?`)) return;
+    if(!confirm(`Удалить камеру?`)) return;
     
     try{
       const resp = await fetch('cameras_api.php', {
