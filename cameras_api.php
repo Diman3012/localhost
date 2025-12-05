@@ -68,6 +68,77 @@ try {
         $id = isset($data['id']) ? (int)$data['id'] : null;
         $ip = isset($data['ip_camera']) ? trim($data['ip_camera']) : null;
         $ctype = isset($data['camera_type_id']) ? ($data['camera_type_id'] !== '' ? (int)$data['camera_type_id'] : null) : null;
+        $action = isset($data['action']) ? trim($data['action']) : null;
+
+        // Handle add action
+        if ($action === 'add') {
+            $wid = isset($data['warehouse_id']) ? (int)$data['warehouse_id'] : null;
+            if (!$wid || !$ip) {
+                http_response_code(400);
+                echo json_encode(['error' => 'warehouse_id_and_ip_required']);
+                exit;
+            }
+            
+            // Verify warehouse exists
+            $stmt = $pdo->prepare("SELECT id FROM warehouses WHERE id = :wid");
+            $stmt->execute([':wid' => $wid]);
+            if (!$stmt->fetchColumn()) {
+                http_response_code(404);
+                echo json_encode(['error' => 'warehouse_not_found']);
+                exit;
+            }
+            
+            // Insert new camera
+            $stmt = $pdo->prepare("INSERT INTO cameras (ip_camera, camera_type_id) VALUES (:ip, :ctype)");
+            $stmt->execute([':ip' => $ip, ':ctype' => $ctype]);
+            $newCameraId = (int)$pdo->lastInsertId();
+            
+            // Link camera to warehouse (update account_camera or camera_state_numbers)
+            $stmt = $pdo->prepare("SELECT account_camera, camera_state_numbers FROM warehouses WHERE id = :wid");
+            $stmt->execute([':wid' => $wid]);
+            $row = $stmt->fetch();
+            if (!$row['account_camera']) {
+                $stmt = $pdo->prepare("UPDATE warehouses SET account_camera = :cid WHERE id = :wid");
+                $stmt->execute([':cid' => $newCameraId, ':wid' => $wid]);
+            } elseif (!$row['camera_state_numbers']) {
+                $stmt = $pdo->prepare("UPDATE warehouses SET camera_state_numbers = :cid WHERE id = :wid");
+                $stmt->execute([':cid' => $newCameraId, ':wid' => $wid]);
+            }
+            
+            echo json_encode(['ok' => true, 'id' => $newCameraId], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        // Handle delete action
+        if ($action === 'delete') {
+            if (!$id) {
+                http_response_code(400);
+                echo json_encode(['error' => 'id_required']);
+                exit;
+            }
+            
+            // Verify camera exists
+            $stmt = $pdo->prepare("SELECT id FROM cameras WHERE id = :id");
+            $stmt->execute([':id' => $id]);
+            if (!$stmt->fetchColumn()) {
+                http_response_code(404);
+                echo json_encode(['error' => 'camera_not_found']);
+                exit;
+            }
+            
+            // Unlink from warehouses
+            $stmt = $pdo->prepare("UPDATE warehouses SET account_camera = NULL WHERE account_camera = :cid");
+            $stmt->execute([':cid' => $id]);
+            $stmt = $pdo->prepare("UPDATE warehouses SET camera_state_numbers = NULL WHERE camera_state_numbers = :cid");
+            $stmt->execute([':cid' => $id]);
+            
+            // Delete camera
+            $stmt = $pdo->prepare("DELETE FROM cameras WHERE id = :id");
+            $stmt->execute([':id' => $id]);
+            
+            echo json_encode(['ok' => true], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
 
         // If request contains a type object -> create/update camera_types
         if (isset($data['type']) && is_array($data['type'])) {

@@ -25,13 +25,12 @@ if (isset($_GET['debug']) && $_GET['debug']) {
     exit;
 }
 
-// Warehouse to section mapping
-$section_map = [
-    1 => 'buffer',
-    2 => 'south',
-    3 => 'north',
-    4 => 'ready'
-];
+// Get all warehouses from database instead of hardcoded mapping
+$sql_warehouses = "SELECT id FROM warehouses ORDER BY id";
+$warehouses_result = $pdo->query($sql_warehouses)->fetchAll(PDO::FETCH_COLUMN);
+
+// Create warehouse_id to warehouse_id map (just the IDs we have)
+$warehouse_ids = $warehouses_result ?: [1, 2, 3, 4];
 
 $result = [];
 $verboseDebug = (isset($_GET['debug']) && $_GET['debug'] == 2);
@@ -57,7 +56,7 @@ function safeExecute($stmt, $params, $sql = null) {
 }
 
 try {
-    foreach ($section_map as $warehouse_id => $section) {
+    foreach ($warehouse_ids as $warehouse_id) {
         // 1) Count of unique trucks (all arrivals total)
         $sql = "SELECT COUNT(DISTINCT state_number) AS cnt
                 FROM arrivals
@@ -146,7 +145,8 @@ try {
             ];
         }
 
-        $result[$section] = [
+        $result['warehouse_' . $warehouse_id] = [
+            'warehouse_id' => $warehouse_id,
             'trucks' => $trucks,
             'in' => $in,
             'out' => $out,
