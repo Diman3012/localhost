@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Склады — Мониторинг (ч/б)</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
 <header>
@@ -31,12 +31,48 @@
 
 <script>
 const MOSCOW_TZ = "Europe/Moscow";
-const sectionImages = {
+let sectionImages = {
   buffer: "1.jpg",
   south: "2.jpg",
   north: "3.jpg",
   ready: "4.jpg"
 };
+
+const SECTION_TO_WAREHOUSE = { buffer: 1, south: 2, north: 3, ready: 4 };
+const WAREHOUSE_TO_SECTION = { 1: 'buffer', 2: 'south', 3: 'north', 4: 'ready' };
+
+let sections = { buffer: "Буфферн склад СПО", south: "Южный склад анодов ОО", north: "Северный склад анодов ОО", ready: "Склад готовой продукции" };
+
+// Загружаем названия складов из БД
+async function loadWarehouseNames(){
+  try{
+    const resp = await fetch('warehouses_api.php', { cache: 'no-store' });
+    if(!resp.ok) return;
+    const data = await resp.json();
+    const warehouses = data.warehouses || [];
+    
+    // Обновляем названия
+    warehouses.forEach(wh => {
+      const section = WAREHOUSE_TO_SECTION[wh.id];
+      if(section){
+        sections[section] = wh.name;
+      }
+    });
+    
+    // Обновляем кнопки в header
+    updateHeaderButtons();
+  }catch(e){ console.error('Error loading warehouse names:', e); }
+}
+
+function updateHeaderButtons(){
+  const header = document.querySelector('header');
+  Object.entries(SECTION_TO_WAREHOUSE).forEach(([section, whId]) => {
+    const btn = header.querySelector(`[data-section="${section}"]`);
+    if(btn && sections[section]){
+      btn.textContent = sections[section];
+    }
+  });
+}
 
 function fmtDateInTZ(date){
   return new Intl.DateTimeFormat("ru-RU", { timeZone: MOSCOW_TZ, day: "2-digit", month:"2-digit", year:"numeric" }).format(date);
@@ -50,8 +86,8 @@ function getHourInTZ(date){
   return date.getUTCHours();
 }
 function getShiftForHour(h) {
-  if (h >= 7 && h < 12) return "Утренняя";
-  if (h >= 12 && h < 19) return "Дневная";
+  if (h >= 7 && h < 15) return "Дневная";
+  if (h >= 15 && h < 23) return "Вечерная";
   return "Ночная";
 }
 
@@ -102,7 +138,6 @@ function createSection(id, title){
   cam.addEventListener("keydown", (e)=> { if(e.key==="Enter"||e.key===" ") openFullscreen(img.src); });
 }
 
-const sections = { buffer: "Буфферн склад СПО", south: "Южный склад анодов ОО", north: "Северный склад анодов ОО", ready: "Склад готовой продукции" };
 Object.entries(sections).forEach(([id,title])=> createSection(id,title));
 
 // Initial state is the markup defaults (first tab/section active).
@@ -240,8 +275,11 @@ async function updateDashboard(){
   }
 }
 
-updateDashboard();
-setInterval(updateDashboard, 2000);
+// Загружаем названия складов из БД
+loadWarehouseNames().then(()=> {
+  updateDashboard();
+  setInterval(updateDashboard, 2000);
+});
 
 function flash(msg, ms=2500){
   let el = document.createElement("div");

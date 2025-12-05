@@ -8,6 +8,20 @@
   --glass: rgba(255,255,255,0.04);
 }
 
+/* Reset button styles across all browsers */
+button {
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
+  background: none !important;
+  border: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  font-family: inherit !important;
+  font-size: inherit !important;
+  cursor: pointer !important;
+}
+
 html, body {
   height: 100%;
   margin: 0;
@@ -33,16 +47,21 @@ header {
 .tab-btn {
   background: transparent;
   color: #fff;
-  border: 1px solid rgba(255,255,255,0.06);
+  border: none;
   padding: 10px 16px;
   cursor: pointer;
-  border-radius: 8px;
-  transition: all 180ms ease;
+  border-radius: 0;
+  transition: color 200ms ease;
   font-weight: 600;
 }
 
-.tab-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.35); }
-.tab-btn.active { background: #555; }
+.tab-btn:hover { 
+  color: #aaa;
+}
+
+.tab-btn.active { 
+  color: #aaa;
+}
 
 main.container { padding: 20px; max-width: 1200px; margin: 16px auto; position: relative; }
 .section { display: none; padding: 18px; gap: 18px; position: relative; }
@@ -71,12 +90,49 @@ main.container { padding: 20px; max-width: 1200px; margin: 16px auto; position: 
 .info { flex: 1; min-width: 260px; display: flex; flex-direction: column; gap: 10px; }
 .info .row { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 10px; background: var(--panel); border-radius: 8px; }
   .cameras-list { margin-top: 14px; display:flex; flex-direction:column; gap:10px; width:100%; }
-  .camera-form { background: #fff; border-radius: 8px; padding: 10px; margin-bottom: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.04); width:100%; box-sizing:border-box; }
+  .camera-form { 
+    background: #fff; 
+    border-radius: 8px; 
+    padding: 12px; 
+    margin-bottom: 16px; 
+    box-shadow: 0 4px 12px rgba(0,0,0,0.04); 
+    width:100%; 
+    box-sizing:border-box;
+    border-left: 4px solid #222;
+    transition: all 200ms ease;
+    border-top: 1px solid rgba(0,0,0,0.05);
+  }
+  .camera-form:hover {
+    box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+    border-left-color: #1a1a1a;
+  }
   /* when on settings page, keep camera-form full-width to align with tables */
-  .settings-page .camera-form { width: 100%; max-width: none; margin: 0; box-sizing: border-box; }
+  .settings-page .camera-form { 
+    width: 100%; 
+    max-width: none; 
+    margin: 0 0 16px 0; 
+    box-sizing: border-box;
+    padding: 14px;
+    border-left: 5px solid #222;
+    border-top: 1px solid rgba(0,0,0,0.06);
+    background: linear-gradient(135deg, #ffffff 0%, #fafafa 100%);
+  }
+  .settings-page .camera-form:hover {
+    box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+  }
   .camera-form .row { display:flex; gap:12px; align-items:center; padding:6px 0; }
+  .camera-form .row.form-header { 
+    padding: 8px 0 10px 0;
+    margin-bottom: 6px;
+    border-bottom: 2px solid #f0f0f0;
+    background: linear-gradient(90deg, rgba(34,34,34,0.02) 0%, transparent 100%);
+  }
+  .camera-form .row.form-header > div > strong {
+    font-size: 1.05rem;
+    color: #222;
+  }
   .camera-form .row > div:first-child { width: 160px; flex: 0 0 160px; color: var(--mid); font-weight: 600; }
-  .camera-form .row > div:last-child { flex: 1 1 auto; display: flex; align-items: center; }
+  .camera-form .row > div:last-child { flex: 1 1 auto; display: flex; align-items: center; gap: 8px; }
   .camera-form .row:last-child > div:last-child { justify-content: flex-end; }
 .info .row small { color: var(--mid); }
 .info .big { font-size: 1.15rem; font-weight: 700; }
@@ -86,11 +142,40 @@ thead { background: #f1f1f1; }
 th, td { padding: 8px 6px; border-bottom: 1px solid #e6e6e6; text-align: center; font-size: 0.95rem; }
 tbody tr:hover { background: rgba(0,0,0,0.02); }
 tbody { max-height: 400px; display: block; overflow: auto; }
-  .camera-form input[type="text"] { padding:6px 8px; border:1px solid #ddd; border-radius:6px; }
-  .camera-form select { padding:6px 8px; border:1px solid #ddd; border-radius:6px; }
-  .camera-form button.save-camera, .camera-form .edit-camera { padding:8px 12px; background:#222; color:#fff; border:none; border-radius:6px; cursor:pointer; min-width:110px; }
-  .camera-form .edit-camera[disabled], .camera-form button[disabled] { opacity: 0.6; cursor: default; }
-  .camera-form input[disabled], .camera-form select[disabled] { background:#fafafa; color:#666; }
+  .camera-form input[type="text"] { padding:6px 8px !important; border:1px solid #ddd !important; border-radius:6px !important; }
+  .camera-form select { padding:6px 8px !important; border:1px solid #ddd !important; border-radius:6px !important; }
+  .camera-form button, 
+  button[type],
+  .camera-form .edit-camera,
+  .camera-form .edit-warehouse,
+  .camera-form .delete-warehouse,
+  .camera-form .add-warehouse,
+  .camera-form .rename-warehouse,
+  .camera-form .save-camera { 
+    padding:8px 12px !important; 
+    background:#222 !important; 
+    color:#fff !important; 
+    border:none !important; 
+    border-radius:6px !important; 
+    cursor:pointer !important; 
+    min-width:110px !important; 
+    transition: background 200ms ease !important; 
+    font-family: inherit !important;
+    font-size: inherit !important;
+  }
+  .camera-form button:hover,
+  button[type]:hover, 
+  .camera-form .edit-camera:hover,
+  .camera-form .edit-warehouse:hover,
+  .camera-form .add-warehouse:hover,
+  .camera-form .rename-warehouse:hover,
+  .camera-form .save-camera:hover { 
+    background:#1a1a1a !important; 
+  }
+  .camera-form .delete-warehouse { background:#d32f2f !important; }
+  .camera-form .delete-warehouse:hover { background:#b71c1c !important; }
+  .camera-form button[disabled] { opacity: 0.6 !important; cursor: default !important; background: #222 !important; }
+  .camera-form input[disabled], .camera-form select[disabled] { background:#fafafa !important; color:#666 !important; }
   /* make editable camera fields darker for readability */
   .camera-form input, .camera-form select, .camera-form textarea { color: var(--dark); }
   .camera-form .row > div:first-child { color: var(--dark); }
@@ -136,7 +221,7 @@ td.left { text-align: left; padding-left: 8px; }
 /* Settings page adjustments to match main page sizing and colors */
 .settings-page .right-panel { flex: 1 1 auto; min-width: 260px; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px; }
 .settings-page .preview-column { flex: 0 0 420px; min-width: 280px; box-sizing: border-box; }
-.settings-page .camera-form { color: var(--dark); }
+.settings-page .camera { color: var(--dark); }
 .settings-page .camera-form .row > div:first-child { color: var(--dark); }
 .settings-page .camera-form input, .settings-page .camera-form select, .settings-page .camera-form textarea { width: 100%; box-sizing: border-box; color: var(--dark); }
 .settings-page .camera { color: var(--dark); }
@@ -157,16 +242,22 @@ td.left { text-align: left; padding-left: 8px; }
 
 /* Right-panel component buttons (e.g. "Камеры") must be visible on white background */
 .settings-page .right-panel .tab-btn {
-  color: var(--dark);
-  background: transparent;
-  border: 1px solid rgba(0,0,0,0.06);
-  padding: 8px 12px;
-  border-radius: 6px;
-  text-align: left;
-  box-shadow: none;
+  color: var(--dark) !important;
+  background: #f5f5f5 !important;
+  border: 1px solid rgba(0,0,0,0.1) !important;
+  padding: 8px 12px !important;
+  border-radius: 6px !important;
+  text-align: left !important;
+  box-shadow: none !important;
+  transition: background 200ms ease !important;
 }
-.settings-page .right-panel .tab-btn:hover { background: rgba(0,0,0,0.03); }
-.settings-page .right-panel .tab-btn.active { background: #f3f3f3; }
+.settings-page .right-panel .tab-btn:hover { 
+  background: #e8e8e8 !important; 
+}
+.settings-page .right-panel .tab-btn.active { 
+  background: #d4d4d4 !important; 
+  font-weight: 600 !important;
+}
 
 /* Force black/very dark text color for settings content (labels, forms, lists) */
 .settings-page main,
@@ -188,3 +279,36 @@ td.left { text-align: left; padding-left: 8px; }
 
 /* Keep muted small text slightly lighter but still readable */
 .settings-page .muted { color: var(--mid) !important; }
+
+/* Ensure camera-form buttons have correct styling in settings page */
+.settings-page .camera-form button,
+.settings-page .camera-form .edit-camera,
+.settings-page .camera-form .edit-warehouse,
+.settings-page .camera-form .delete-warehouse,
+.settings-page .camera-form .add-warehouse,
+.settings-page .camera-form .rename-warehouse,
+.settings-page .camera-form .save-camera { 
+  padding:8px 12px !important; 
+  background:#222 !important; 
+  color:#fff !important; 
+  border:none !important; 
+  border-radius:6px !important; 
+  cursor:pointer !important; 
+  min-width:110px !important; 
+  transition: background 200ms ease !important; 
+  font-family: inherit !important;
+  font-size: inherit !important;
+}
+.settings-page .camera-form button:hover,
+.settings-page .camera-form .edit-camera:hover,
+.settings-page .camera-form .edit-warehouse:hover,
+.settings-page .camera-form .delete-warehouse:hover,
+.settings-page .camera-form .add-warehouse:hover,
+.settings-page .camera-form .rename-warehouse:hover,
+.settings-page .camera-form .save-camera:hover { 
+  background:#1a1a1a !important; 
+}
+.settings-page .camera-form .delete-warehouse { background:#d32f2f !important; }
+.settings-page .camera-form .delete-warehouse:hover { background:#b71c1c !important; }
+.settings-page .camera-form button[disabled] { opacity: 0.6 !important; cursor: default !important; background: #222 !important; }
+

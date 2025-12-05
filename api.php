@@ -58,10 +58,10 @@ function safeExecute($stmt, $params, $sql = null) {
 
 try {
     foreach ($section_map as $warehouse_id => $section) {
-        // 1) Count of unique trucks (arrivals not departed yet)
+        // 1) Count of unique trucks (all arrivals total)
         $sql = "SELECT COUNT(DISTINCT state_number) AS cnt
                 FROM arrivals
-                WHERE warehouse_id = :wid AND departed_at IS NULL";
+                WHERE warehouse_id = :wid";
         $stmt = $pdo->prepare($sql);
         safeExecute($stmt, [':wid' => $warehouse_id], $sql);
         $trucks = (int) $stmt->fetchColumn();
