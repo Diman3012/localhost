@@ -3,8 +3,8 @@
 -- https://www.phpmyadmin.net/
 --
 -- Хост: 127.0.0.1:3306
--- Время создания: Дек 04 2025 г., 10:41
--- Версия сервера: 5.5.62
+-- Время создания: Дек 05 2025 г., 10:33
+-- Версия сервера: 8.0.30
 -- Версия PHP: 7.2.34
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
@@ -28,9 +28,9 @@ SET time_zone = "+00:00";
 --
 
 CREATE TABLE `admin_users` (
-  `id` int(11) NOT NULL,
-  `login` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `password` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL
+  `id` int NOT NULL,
+  `login` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `password` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
@@ -47,13 +47,13 @@ INSERT INTO `admin_users` (`id`, `login`, `password`) VALUES
 --
 
 CREATE TABLE `arrivals` (
-  `id` int(11) NOT NULL,
-  `warehouse_id` int(11) NOT NULL,
-  `state_number` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `id` int NOT NULL,
+  `warehouse_id` int NOT NULL,
+  `state_number` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `arrived_at` datetime DEFAULT NULL,
   `departed_at` datetime DEFAULT NULL,
-  `camera_id` int(11) DEFAULT NULL,
-  `status_id` int(11) DEFAULT NULL
+  `camera_id` int DEFAULT NULL,
+  `status_id` int DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
@@ -75,8 +75,8 @@ INSERT INTO `arrivals` (`id`, `warehouse_id`, `state_number`, `arrived_at`, `dep
 --
 
 CREATE TABLE `block_statuses` (
-  `id` int(11) NOT NULL,
-  `name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL
+  `id` int NOT NULL,
+  `name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
@@ -94,34 +94,39 @@ INSERT INTO `block_statuses` (`id`, `name`) VALUES
 --
 
 CREATE TABLE `cameras` (
-  `id` int(11) NOT NULL,
-  `ip_camera` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `camera_type_id` int(11) DEFAULT NULL
+  `id` int NOT NULL,
+  `ip_camera` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `camera_type_id` int DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Дамп данных таблицы `cameras`
 --
 
--- camera_type_id: 1 = учёт, 2 = номера
 INSERT INTO `cameras` (`id`, `ip_camera`, `camera_type_id`) VALUES
-(1, 'rtsp://192.168.0.101', 1),
-(2, 'rtsp://192.168.0.102', 2),
+(1, 'rtsp://admin:12345678@192.168.0.101/live', 1),
+(2, 'rtsp://192.168.0.102/live', 1),
 (3, 'rtsp://192.168.0.103', 1),
-(4, 'rtsp://192.168.0.104', 2);
+(4, 'rtsp://192.168.0.104', 1);
+
+-- --------------------------------------------------------
+
+--
+-- Структура таблицы `camera_types`
+--
 
 CREATE TABLE `camera_types` (
-  `id` int(11) NOT NULL,
-  `description` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL
+  `id` int NOT NULL,
+  `description` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Дамп данных таблицы `camera_types`
+--
 
 INSERT INTO `camera_types` (`id`, `description`) VALUES
 (1, 'учёт/наблюдение за складом'),
 (2, 'распознавание номеров автомобилей');
-
--- Индексы таблицы `camera_types`
-ALTER TABLE `camera_types`
-  ADD PRIMARY KEY (`id`);
 
 -- --------------------------------------------------------
 
@@ -130,12 +135,12 @@ ALTER TABLE `camera_types`
 --
 
 CREATE TABLE `event_log` (
-  `id` int(11) NOT NULL,
-  `arrival_id` int(11) NOT NULL,
+  `id` int NOT NULL,
+  `arrival_id` int NOT NULL,
   `event_time` datetime DEFAULT NULL,
-  `event_type_id` int(11) NOT NULL,
-  `camera_id` int(11) DEFAULT NULL,
-  `photo_path` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL
+  `event_type_id` int NOT NULL,
+  `camera_id` int DEFAULT NULL,
+  `photo_path` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
@@ -154,8 +159,8 @@ INSERT INTO `event_log` (`id`, `arrival_id`, `event_time`, `event_type_id`, `cam
 --
 
 CREATE TABLE `event_types` (
-  `id` int(11) NOT NULL,
-  `name` varchar(150) COLLATE utf8mb4_unicode_ci NOT NULL
+  `id` int NOT NULL,
+  `name` varchar(150) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
@@ -175,9 +180,9 @@ INSERT INTO `event_types` (`id`, `name`) VALUES
 --
 
 CREATE TABLE `lgo_state_number` (
-  `id` int(11) NOT NULL,
+  `id` int NOT NULL,
   `time_date` datetime NOT NULL,
-  `state_number` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL
+  `state_number` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
@@ -196,11 +201,11 @@ INSERT INTO `lgo_state_number` (`id`, `time_date`, `state_number`) VALUES
 --
 
 CREATE TABLE `packages` (
-  `id` int(11) NOT NULL,
-  `arrival_id` int(11) NOT NULL,
-  `blocks_count` int(11) NOT NULL,
-  `block_status_id` int(11) NOT NULL,
-  `comment` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL
+  `id` int NOT NULL,
+  `arrival_id` int NOT NULL,
+  `blocks_count` int NOT NULL,
+  `block_status_id` int NOT NULL,
+  `comment` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
@@ -222,8 +227,8 @@ INSERT INTO `packages` (`id`, `arrival_id`, `blocks_count`, `block_status_id`, `
 --
 
 CREATE TABLE `statuses` (
-  `id` int(11) NOT NULL,
-  `name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL
+  `id` int NOT NULL,
+  `name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
@@ -242,21 +247,23 @@ INSERT INTO `statuses` (`id`, `name`) VALUES
 --
 
 CREATE TABLE `warehouses` (
-  `id` int(11) NOT NULL,
-  `name` varchar(150) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `type` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `account_camera` int(11) DEFAULT NULL
+  `id` int NOT NULL,
+  `name` varchar(150) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `type` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `account_camera` int DEFAULT NULL,
+  `camera_state_numbers` int DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Дамп данных таблицы `warehouses`
 --
 
-INSERT INTO `warehouses` (`id`, `name`, `type`, `account_camera`) VALUES
-(1, 'Буферный склад СПО', 'буферный', 1),
-(2, 'Южный склад анодов ОО', 'аноды', 2),
-(3, 'Северный склад анодов ОО', 'аноды', 3),
-(4, 'Склад готовой продукции', 'готовая продукция', 4);
+INSERT INTO `warehouses` (`id`, `name`, `type`, `account_camera`, `camera_state_numbers`) VALUES
+(1, 'Буфферный склад СПО', 'буферный', 1, 2),
+(2, 'Южный склад анодов ОО', 'аноды', 3, 4),
+(3, 'Северный склад анодов ОО', 'аноды', 1, 2),
+(4, 'Склад готовой продукции', 'готовая продукция', 3, 4),
+(5, 'Пиздец', 'Явахуе', 4, 3);
 
 --
 -- Индексы сохранённых таблиц
@@ -287,11 +294,14 @@ ALTER TABLE `block_statuses`
 -- Индексы таблицы `cameras`
 --
 ALTER TABLE `cameras`
-  ADD PRIMARY KEY (`id`);
-
--- index for camera_type_id
-ALTER TABLE `cameras`
+  ADD PRIMARY KEY (`id`),
   ADD KEY `camera_type_id` (`camera_type_id`);
+
+--
+-- Индексы таблицы `camera_types`
+--
+ALTER TABLE `camera_types`
+  ADD PRIMARY KEY (`id`);
 
 --
 -- Индексы таблицы `event_log`
@@ -337,67 +347,74 @@ ALTER TABLE `warehouses`
   ADD KEY `camera_state_numbers` (`camera_state_numbers`);
 
 --
+-- AUTO_INCREMENT для сохранённых таблиц
+--
 
+--
+-- AUTO_INCREMENT для таблицы `admin_users`
+--
 ALTER TABLE `admin_users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
-
--- AUTO_INCREMENT для таблицы `camera_types`
-ALTER TABLE `camera_types`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT для таблицы `arrivals`
 --
 ALTER TABLE `arrivals`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT для таблицы `block_statuses`
 --
 ALTER TABLE `block_statuses`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT для таблицы `cameras`
 --
 ALTER TABLE `cameras`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+
+--
+-- AUTO_INCREMENT для таблицы `camera_types`
+--
+ALTER TABLE `camera_types`
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT для таблицы `event_log`
 --
 ALTER TABLE `event_log`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT для таблицы `event_types`
 --
 ALTER TABLE `event_types`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT для таблицы `lgo_state_number`
 --
 ALTER TABLE `lgo_state_number`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT для таблицы `packages`
 --
 ALTER TABLE `packages`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT для таблицы `statuses`
 --
 ALTER TABLE `statuses`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT для таблицы `warehouses`
 --
 ALTER TABLE `warehouses`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- Ограничения внешнего ключа сохраненных таблиц
@@ -410,6 +427,12 @@ ALTER TABLE `arrivals`
   ADD CONSTRAINT `arrivals_ibfk_1` FOREIGN KEY (`warehouse_id`) REFERENCES `warehouses` (`id`),
   ADD CONSTRAINT `arrivals_ibfk_2` FOREIGN KEY (`camera_id`) REFERENCES `cameras` (`id`),
   ADD CONSTRAINT `arrivals_ibfk_3` FOREIGN KEY (`status_id`) REFERENCES `statuses` (`id`);
+
+--
+-- Ограничения внешнего ключа таблицы `cameras`
+--
+ALTER TABLE `cameras`
+  ADD CONSTRAINT `cameras_ibfk_1` FOREIGN KEY (`camera_type_id`) REFERENCES `camera_types` (`id`);
 
 --
 -- Ограничения внешнего ключа таблицы `event_log`
@@ -432,9 +455,6 @@ ALTER TABLE `packages`
 ALTER TABLE `warehouses`
   ADD CONSTRAINT `warehouses_ibfk_1` FOREIGN KEY (`account_camera`) REFERENCES `cameras` (`id`),
   ADD CONSTRAINT `warehouses_ibfk_2` FOREIGN KEY (`camera_state_numbers`) REFERENCES `cameras` (`id`);
--- foreign key from cameras to camera_types
-ALTER TABLE `cameras`
-  ADD CONSTRAINT `cameras_ibfk_1` FOREIGN KEY (`camera_type_id`) REFERENCES `camera_types` (`id`);
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

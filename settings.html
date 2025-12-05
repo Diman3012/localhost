@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Настройки — Мониторинг (ч/б)</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=2">
   <style>
     body.settings-page {
       background: var(--bg);
@@ -21,18 +21,6 @@
       top: 0;
       z-index: 100;
     }
-    .settings-page .tab-btn {
-      background: transparent;
-      color: #fff;
-      border: 1px solid rgba(255,255,255,0.06);
-      padding: 10px 16px;
-      cursor: pointer;
-      border-radius: 8px;
-      transition: all 180ms ease;
-      font-weight: 600;
-    }
-    .settings-page .tab-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.35); }
-    .settings-page .tab-btn.active { background: #555; }
     .settings-page .back-btn {
       background: transparent;
       color: #fff;
@@ -41,43 +29,11 @@
       cursor: pointer;
       border-radius: 8px;
       font-weight: 600;
-      transition: all 180ms ease;
+      transition: color 180ms ease;
       margin-right: auto;
     }
-    .settings-page .back-btn:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
-    .settings-page main {
-      padding: 20px;
-      max-width: 1200px;
-      margin: 16px auto;
-    }
-    .settings-page .section {
-      display: none;
-      gap: 18px;
-      flex-wrap: wrap;
-    }
-    .settings-page .section.active {
-      display: flex;
-    }
-    .settings-page .camera {
-      /* Match main page camera size */
-      width: 420px;
-      min-width: 280px;
-      height: 320px;
-      background: var(--muted);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      cursor: pointer;
-      overflow: hidden;
-      border-radius: 8px;
-      border: 2px solid rgba(0,0,0,0.07);
-      box-shadow: 0 6px 18px rgba(0,0,0,0.12) inset;
-    }
-    .settings-page .camera img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
+    .settings-page .back-btn:hover { 
+      color: #aaa;
     }
   </style>
 </head>
@@ -117,13 +73,120 @@
 <script>
 // --- Cameras editing support (define early) ---
 const SECTION_TO_WAREHOUSE = { buffer: 1, south: 2, north: 3, ready: 4 };
-const WAREHOUSE_NAMES = { 1: 'Буфферн склад СПО', 2: 'Южный склад анодов ОО', 3: 'Северный склад анодов ОО', 4: 'Склад готовой продукции' };
+const WAREHOUSE_TO_SECTION = { 1: 'buffer', 2: 'south', 3: 'north', 4: 'ready' };
+let WAREHOUSE_NAMES = { 1: 'Буфферн склад СПО', 2: 'Южный склад анодов ОО', 3: 'Северный склад анодов ОО', 4: 'Склад готовой продукции' };
 let CAMERA_TYPES = [];
 let CURRENT_WAREHOUSE_ID = 1;
+let allWarehouses = []; // Все склады из БД
+
+// Загружаем названия складов из БД и пытаемся сопоставить их с разделами
+async function loadWarehouseNames(){
+  try{
+    const resp = await fetch('warehouses_api.php', { cache: 'no-store' });
+    if(!resp.ok) return;
+    const data = await resp.json();
+    allWarehouses = data.warehouses || [];
+
+    // Индекс по id
+    const byId = {};
+    allWarehouses.forEach(w => { byId[w.id] = w; });
+
+    // Обновляем все имена в объекте
+    allWarehouses.forEach(wh => { WAREHOUSE_NAMES[wh.id] = wh.name; });
+
+    // Попробуем сопоставить разделы (buffer, south, north, ready) по id, type или имени
+    const assignForSection = (sectionKey, matcher) => {
+      const currentId = SECTION_TO_WAREHOUSE[sectionKey];
+      if (byId[currentId]) return; // уже привязано к существующему id
+      const found = allWarehouses.find(matcher);
+      if (found) {
+        SECTION_TO_WAREHOUSE[sectionKey] = found.id; // обновляем маппинг
+        WAREHOUSE_NAMES[found.id] = found.name;
+      }
+    };
+
+    // buffer: ищем по type/name содержащему "буфер"
+    assignForSection('buffer', w => (w.type||'').toLowerCase().includes('буфер') || (w.name||'').toLowerCase().includes('буфер'));
+    // ready: ищем по type/name содержащему "готов"
+    assignForSection('ready', w => (w.type||'').toLowerCase().includes('готов') || (w.name||'').toLowerCase().includes('готов'));
+    // south/north: стараемся искать явные слова "юж" и "сев"
+    assignForSection('south', w => (w.name||'').toLowerCase().includes('юж'));
+    assignForSection('north', w => (w.name||'').toLowerCase().includes('сев'));
+
+    // Если для юга/севера не найдено явных соответствий, попробуем распределить по типу "аноды"
+    const anodes = allWarehouses.filter(w => (w.type||'').toLowerCase().includes('анод') || (w.name||'').toLowerCase().includes('анод'));
+    if (!byId[SECTION_TO_WAREHOUSE['south']] && anodes[0]) {
+      SECTION_TO_WAREHOUSE['south'] = anodes[0].id;
+      WAREHOUSE_NAMES[anodes[0].id] = anodes[0].name;
+    }
+    if (!byId[SECTION_TO_WAREHOUSE['north']] && anodes[1]) {
+      SECTION_TO_WAREHOUSE['north'] = anodes[1].id;
+      WAREHOUSE_NAMES[anodes[1].id] = anodes[1].name;
+    }
+
+    // Наконец обновляем кнопки в header
+    updateHeaderButtons();
+  }catch(e){ console.error('Error loading warehouse names:', e); }
+}
+
+function updateHeaderButtons(){
+  const header = document.querySelector('header');
+  
+  // Обновляем текст существующих кнопок
+  Object.entries(SECTION_TO_WAREHOUSE).forEach(([section, whId]) => {
+    const btn = header.querySelector(`[data-section="${section}"]`);
+    if(btn && WAREHOUSE_NAMES[whId]){
+      btn.textContent = WAREHOUSE_NAMES[whId];
+    }
+  });
+  
+  // Добавляем кнопки для складов, которые не привязаны ни к одному разделу
+  allWarehouses.forEach(wh => {
+    if (!WAREHOUSE_TO_SECTION[wh.id]) {
+      // Этот склад не привязан ни к одному разделу - создаём для него кнопку
+      const warehouseId = `warehouse-${wh.id}`;
+      let btn = header.querySelector(`[data-section="${warehouseId}"]`);
+      if (!btn) {
+        // Кнопка не существует, создаём её
+        btn = document.createElement('button');
+        btn.className = 'tab-btn';
+        btn.setAttribute('data-section', warehouseId);
+        btn.textContent = wh.name;
+        // Вставляем её перед divider'ом (перед flex:1)
+        const divider = header.querySelector('[style*="flex:1"]');
+        if (divider) {
+          header.insertBefore(btn, divider);
+        } else {
+          header.appendChild(btn);
+        }
+        // Добавляем обработчик клика
+        btn.addEventListener('click', ()=> handleWarehouseTabClick(btn));
+      } else {
+        // Кнопка уже существует, обновляем текст
+        btn.textContent = wh.name;
+      }
+    }
+  });
+}
 
 function sectionImageFor(id){
   const map = { buffer: '1.jpg', south: '2.jpg', north: '3.jpg', ready: '4.jpg' };
   return map[id] || '1.jpg';
+}
+
+// Helper function to get warehouse_id from section ID (both standard and new warehouses)
+function getWarehouseIdFromSection(sectionId){
+  // If it's a standard section, use SECTION_TO_WAREHOUSE
+  if(SECTION_TO_WAREHOUSE[sectionId]){
+    return SECTION_TO_WAREHOUSE[sectionId];
+  }
+  // If it's a new warehouse (warehouse-N format), extract N
+  if(sectionId.startsWith('warehouse-')){
+    const id = parseInt(sectionId.substring(10));
+    return isNaN(id) ? 1 : id;
+  }
+  // Default to buffer
+  return SECTION_TO_WAREHOUSE['buffer'] || 1;
 }
 
 async function fetchCameraTypes(){
@@ -150,8 +213,70 @@ async function loadCamerasForWarehouse(wid, sectionId){
     const data = await resp.json();
     const cams = data.cameras || [];
     container.innerHTML = '';
-    if(cams.length === 0){ container.innerHTML = '<div class="muted">Камеры не настроены для этого склада</div>'; return; }
-    cams.forEach(cam => renderCameraForm(container, cam));
+    
+    // Форма для добавления новой камеры
+    const addForm = document.createElement('div');
+    addForm.className = 'camera-form';
+    addForm.innerHTML = `
+      <div class="row form-header"><div><strong>➕ Добавить новую камеру</strong></div></div>
+      <div class="row"><div>IP/Host</div><div><input type="text" class="add-ip-input" placeholder="192.168.1.100" style="width:100%"></div></div>
+      <div class="row"><div>Логин</div><div><input type="text" class="add-login-input" placeholder="admin" style="width:100%"></div></div>
+      <div class="row"><div>Пароль</div><div><input type="password" class="add-pass-input" placeholder="пароль" style="width:100%"></div></div>
+      <div class="row"><div>Тип</div><div><select class="add-type-select" style="width:100%"></select></div></div>
+      <div class="row"><div></div><div><button class="add-camera">Добавить</button></div></div>
+    `;
+    container.appendChild(addForm);
+    
+    // Populate types in add form
+    const addTypeSelect = addForm.querySelector('.add-type-select');
+    CAMERA_TYPES.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t.id;
+      opt.textContent = (t.description && t.description.length) ? t.description : ('Тип #' + t.id);
+      addTypeSelect.appendChild(opt);
+    });
+    
+    // Add camera button handler
+    addForm.querySelector('.add-camera').addEventListener('click', async ()=>{
+      const hostPart = addForm.querySelector('.add-ip-input').value.trim();
+      const login = addForm.querySelector('.add-login-input').value.trim();
+      const pass = addForm.querySelector('.add-pass-input').value;
+      const typeId = addTypeSelect.value;
+      
+      if(!hostPart){ flash('IP/Host обязателен'); return; }
+      
+      // Build RTSP URL
+      let hp = hostPart.replace(/^\s+|\s+$/g, '');
+      hp = hp.replace(/^\w+:\/\//,'');
+      hp = hp.replace(/^[^@]+@/,'');
+      const full = 'rtsp://' + (login ? (encodeURIComponent(login) + (pass ? ':' + encodeURIComponent(pass) : '') + '@') : '') + hp + '/live';
+      
+      try{
+        const resp = await fetch('cameras_api.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'add', warehouse_id: wid, ip_camera: full, camera_type_id: typeId })
+        });
+        if(!resp.ok) { flash('Ошибка добавления камеры'); return; }
+        const r = await resp.json();
+        if(r.ok){
+          flash('Камера добавлена');
+          // Clear form
+          addForm.querySelector('.add-ip-input').value = '';
+          addForm.querySelector('.add-login-input').value = '';
+          addForm.querySelector('.add-pass-input').value = '';
+          // Reload cameras
+          loadCamerasForWarehouse(wid, sectionId);
+        } else {
+          flash('Ошибка добавления');
+        }
+      }catch(e){ console.error(e); flash('Ошибка сети'); }
+    });
+    
+    // Display existing cameras
+    if(cams.length > 0){
+      cams.forEach(cam => renderCameraForm(container, cam));
+    }
   }catch(e){ console.error(e); container.innerHTML = '<div class="muted">Ошибка загрузки</div>'; }
 }
 
@@ -192,12 +317,12 @@ function renderCameraForm(container, cam){
   const parsed = parseRtsp(cam.ip_camera || '');
 
   div.innerHTML = `
-    <div class="row"><div><strong>Камера #${cam.id}</strong></div></div>
+    <div class="row form-header"><div><strong>📷 Камера #${cam.id}</strong></div></div>
     <div class="row"><div>IP/Host</div><div><input type="text" class="ip-input" value="${parsed.host||''}" style="width:100%" disabled></div></div>
     <div class="row"><div>Логин</div><div><input type="text" class="login-input" value="${parsed.login||''}" style="width:100%" disabled></div></div>
     <div class="row"><div>Пароль</div><div><input type="password" class="pass-input" value="${parsed.password||''}" style="width:100%" disabled></div></div>
     <div class="row"><div>Тип</div><div><select class="type-select" style="width:100%" disabled></select></div></div>
-    <div class="row"><div></div><div><button class="edit-camera" data-mode="view">Изменить</button></div></div>
+    <div class="row"><div></div><div><button class="edit-camera" data-mode="view">Изменить</button><button class="delete-camera">Удалить</button></div></div>
   `;
 
   // populate types
@@ -276,26 +401,32 @@ function renderCameraForm(container, cam){
     }catch(e){ console.error(e); flash('Ошибка сети'); }
   });
 
-  container.appendChild(div);
-}
+  // Delete camera button
+  const deleteBtn = div.querySelector('.delete-camera');
+  deleteBtn.addEventListener('click', async ()=>{
+    if(!confirm(`Удалить камеру #${cam.id}?`)) return;
+    
+    try{
+      const resp = await fetch('cameras_api.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', id: cam.id })
+      });
+      if(!resp.ok) { flash('Ошибка удаления камеры'); return; }
+      const r = await resp.json();
+      if(r.ok){
+        flash('Камера удалена');
+        // Reload cameras for current warehouse
+        const sec2 = sessionStorage.getItem('currentSection') || 'buffer';
+        const widReload = CURRENT_WAREHOUSE_ID || getWarehouseIdFromSection(sec2);
+        if(widReload) loadCamerasForWarehouse(widReload, sec2);
+      } else {
+        flash('Ошибка удаления');
+      }
+    }catch(e){ console.error(e); flash('Ошибка сети'); }
+  });
 
-async function loadCamerasForWarehouse(wid, sectionId){
-  const container = document.getElementById('preview-cameras');
-  if(!container) return;
-  container.innerHTML = '<div class="muted">Загрузка камер...</div>';
-  await fetchCameraTypes();
-  CURRENT_WAREHOUSE_ID = wid;
-  // update preview image
-  const pi = document.getElementById('preview-img'); if(pi) pi.src = sectionImageFor(sectionId);
-  try{
-    const resp = await fetch('cameras_api.php?warehouse_id=' + encodeURIComponent(wid), { cache: 'no-store' });
-    if(!resp.ok){ container.innerHTML = '<div class="muted">Ошибка загрузки</div>'; return; }
-    const data = await resp.json();
-    const cams = data.cameras || [];
-    container.innerHTML = '';
-    if(cams.length === 0){ container.innerHTML = '<div class="muted">Камеры не настроены для этого склада</div>'; return; }
-    cams.forEach(cam => renderCameraForm(container, cam));
-  }catch(e){ console.error(e); container.innerHTML = '<div class="muted">Ошибка загрузки</div>'; }
+  container.appendChild(div);
 }
 
 async function loadCamerasForSection(sectionId){
@@ -364,35 +495,235 @@ document.getElementById('back-btn').addEventListener('click', ()=>{
 });
 
 // header tab switching for warehouses — load cameras for selected warehouse only
+// Function to handle warehouse tab click
+function handleWarehouseTabClick(btn){
+  document.querySelectorAll('header .tab-btn').forEach(b=> b.classList.remove('active'));
+  btn.classList.add('active');
+  // change preview image
+  const sec = btn.dataset.section;
+  const pi = document.getElementById('preview-img');
+  if(pi) pi.src = sectionImageFor(sec);
+  // save selection so when opening settings from main it stays consistent
+  sessionStorage.setItem('currentSection', sec);
+  // If a component is active (e.g. cameras or warehouses) then load corresponding settings
+  const activeComp = document.querySelector('#right-sections button.active');
+  const wid = getWarehouseIdFromSection(sec); // Use helper function instead of SECTION_TO_WAREHOUSE
+  CURRENT_WAREHOUSE_ID = wid;
+  const container = document.getElementById('preview-cameras');
+  
+  if(activeComp && activeComp.dataset.component === 'cameras'){
+    loadCamerasForWarehouse(wid, sec);
+  } else if(activeComp && activeComp.dataset.component === 'warehouses'){
+    // Reload warehouses list (it shows all warehouses, not warehouse-specific)
+    loadWarehouses();
+  } else {
+    if(container) container.innerHTML = '<div class="muted">Выберите компонент справа, чтобы настроить</div>';
+  }
+}
+
 document.querySelectorAll('header .tab-btn').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    document.querySelectorAll('header .tab-btn').forEach(b=> b.classList.remove('active'));
-    btn.classList.add('active');
-    // change preview image
-    const sec = btn.dataset.section;
-    const pi = document.getElementById('preview-img');
-    if(pi) pi.src = sectionImageFor(sec);
-    // save selection so when opening settings from main it stays consistent
-    sessionStorage.setItem('currentSection', sec);
-    // If a component is active (e.g. cameras) then load corresponding settings,
-    // otherwise clear the settings area and wait for user to click a component.
-    const activeComp = document.querySelector('#right-sections button.active');
-    const wid = SECTION_TO_WAREHOUSE[sec];
-    CURRENT_WAREHOUSE_ID = wid;
-    const container = document.getElementById('preview-cameras');
-    if(activeComp && activeComp.dataset.component === 'cameras'){
-      loadCamerasForWarehouse(wid, sec);
-    } else {
-      if(container) container.innerHTML = '<div class="muted">Выберите компонент справа, чтобы настроить</div>';
-    }
-  });
+  btn.addEventListener('click', ()=> handleWarehouseTabClick(btn));
 });
 
-document.addEventListener('DOMContentLoaded', ()=>{
+// Функции для управления складами
+function renderWarehouseForm(container, wh){
+  const div = document.createElement('div');
+  div.className = 'camera-form';
+  div.innerHTML = `
+    <div class="row form-header"><div><strong>🏭 Склад #${wh.id}: ${wh.name}</strong></div></div>
+    <div class="row"><div>Название</div><div><input type="text" class="wh-name-input" value="${wh.name || ''}" style="width:100%" disabled></div></div>
+    <div class="row"><div>Тип</div><div><input type="text" class="wh-type-input" value="${wh.type || ''}" style="width:100%" disabled></div></div>
+    <div class="row"><div>Заезды</div><div style="padding:8px;" id="wh-arrivals-${wh.id}">Загрузка...</div></div>
+    <div class="row"><div></div><div><button class="edit-warehouse" data-mode="view" data-id="${wh.id}">Изменить</button><button class="delete-warehouse" data-id="${wh.id}">Удалить</button></div></div>
+  `;
+
+  // edit/save toggle
+  const editBtn = div.querySelector('.edit-warehouse');
+  const nameInput = div.querySelector('.wh-name-input');
+  const typeInput = div.querySelector('.wh-type-input');
+  nameInput.disabled = true;
+  typeInput.disabled = true;
+
+  editBtn.addEventListener('click', async ()=>{
+    if (editBtn.dataset.mode === 'view') {
+      // switch to edit mode
+      editBtn.textContent = 'Сохранить';
+      editBtn.dataset.mode = 'edit';
+      nameInput.disabled = false;
+      typeInput.disabled = false;
+      nameInput.focus();
+      return;
+    }
+
+    // save mode
+    const name = nameInput.value.trim();
+    const type = typeInput.value.trim();
+
+    if(!name){ flash('Название обязательно'); return; }
+
+    try{
+      const resp = await fetch('warehouses_api.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'rename', id: wh.id, name: name, type: type })
+      });
+      if(!resp.ok) { flash('Ошибка сохранения'); return; }
+      const r = await resp.json();
+      if(r.ok){
+        flash('Склад сохранен');
+        // return to view mode
+        editBtn.textContent = 'Изменить';
+        editBtn.dataset.mode = 'view';
+        nameInput.disabled = true;
+        typeInput.disabled = true;
+        // Перезагружаем названия складов в header
+        await loadWarehouseNames();
+        // reload warehouses
+        loadWarehouses();
+      } else {
+        flash('Ошибка сохранения');
+      }
+    }catch(e){ console.error(e); flash('Ошибка сети'); }
+  });
+
+  // Удаление
+  div.querySelector('.delete-warehouse').addEventListener('click', async ()=>{
+    try{
+      const resp = await fetch('warehouses_api.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', id: wh.id })
+      });
+      if(!resp.ok){
+        const errData = await resp.json();
+        if(errData.error === 'has_arrivals'){
+          // Требуем подтверждение
+          const confirm_text = prompt(`${errData.message}\n\nВведите название склада точно для подтверждения:\n"${wh.name}"`);
+          if(!confirm_text || confirm_text !== wh.name){
+            flash('Удаление отменено');
+            return;
+          }
+          // Повторный запрос с подтверждением
+          const resp2 = await fetch('warehouses_api.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'delete', id: wh.id, confirm: true })
+          });
+          if(!resp2.ok){ flash('Ошибка удаления'); return; }
+          const r2 = await resp2.json();
+          if(r2.ok){
+            flash('Склад удален');
+            // Перезагружаем названия складов в header
+            await loadWarehouseNames();
+            loadWarehouses();
+          } else {
+            flash('Ошибка удаления');
+          }
+        } else {
+          flash('Ошибка удаления');
+        }
+        return;
+      }
+      const r = await resp.json();
+      if(r.ok){
+        flash('Склад удален');
+        // Перезагружаем названия складов в header
+        await loadWarehouseNames();
+        loadWarehouses();
+      } else {
+        flash('Ошибка удаления');
+      }
+    }catch(e){ console.error(e); flash('Ошибка сети'); }
+  });
+
+  container.appendChild(div);
+}
+
+async function loadWarehouses(){
+  const container = document.getElementById('preview-cameras');
+  if(!container) return;
+  container.innerHTML = '<div class="muted">Загрузка складов...</div>';
+  try{
+    const resp = await fetch('warehouses_api.php', { cache: 'no-store' });
+    if(!resp.ok){ container.innerHTML = '<div class="muted">Ошибка загрузки</div>'; return; }
+    const data = await resp.json();
+    const warehouses = data.warehouses || [];
+    container.innerHTML = '';
+    
+    // Форма для добавления нового склада
+    const addForm = document.createElement('div');
+    addForm.className = 'camera-form';
+    addForm.innerHTML = `
+      <div class="row form-header"><div><strong>➕ Добавить новый склад</strong></div></div>
+      <div class="row"><div>Название</div><div><input type="text" class="wh-name-input" placeholder="Название склада" style="width:100%"></div></div>
+      <div class="row"><div>Тип</div><div><input type="text" class="wh-type-input" placeholder="Тип склада (опционально)" style="width:100%"></div></div>
+      <div class="row"><div></div><div><button class="add-warehouse">Добавить</button></div></div>
+    `;
+    container.appendChild(addForm);
+    
+    // Обработчик добавления
+    addForm.querySelector('.add-warehouse').addEventListener('click', async ()=>{
+      const name = addForm.querySelector('.wh-name-input').value.trim();
+      const type = addForm.querySelector('.wh-type-input').value.trim();
+      if(!name){ flash('Название обязательно'); return; }
+      
+      try{
+        const resp = await fetch('warehouses_api.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'add', name: name, type: type })
+        });
+        if(!resp.ok){ flash('Ошибка добавления'); return; }
+        const r = await resp.json();
+        if(r.ok){
+          flash('Склад добавлен');
+          addForm.querySelector('.wh-name-input').value = '';
+          addForm.querySelector('.wh-type-input').value = '';
+          // Перезагружаем названия складов в header
+          await loadWarehouseNames();
+          loadWarehouses();
+        } else {
+          flash('Ошибка добавления');
+        }
+      }catch(e){ console.error(e); flash('Ошибка сети'); }
+    });
+    
+    // Список существующих складов
+    if(warehouses.length > 0){
+      warehouses.forEach(wh => {
+        renderWarehouseForm(container, wh);
+        // Загружаем количество заездов
+        checkArrivalsCount(wh.id);
+      });
+    }
+  }catch(e){ console.error(e); container.innerHTML = '<div class="muted">Ошибка загрузки</div>'; }
+}
+
+async function checkArrivalsCount(whId){
+  try{
+    const elem = document.getElementById(`wh-arrivals-${whId}`);
+    if(!elem) return;
+    
+    const resp = await fetch('warehouses_api.php?warehouse_id=' + whId, { cache: 'no-store' });
+    if(!resp.ok){
+      elem.textContent = '? заезд(ов)';
+      return;
+    }
+    const data = await resp.json();
+    const count = data.arrivals_count || 0;
+    elem.textContent = count + ' заезд(ов)';
+  }catch(e){ console.error(e); }
+}
+
+document.addEventListener('DOMContentLoaded', async ()=>{
+  // Загружаем названия складов из БД
+  await loadWarehouseNames();
+  
   const right = document.getElementById('right-sections');
-  // Build right panel with components (only Cameras for now)
+  // Build right panel with components
   const components = [
-    { id: 'cameras', label: '🎥 Камеры', icon: '📷' }
+    { id: 'cameras', label: '📷 Камеры', icon: '🎥' },
+    { id: 'warehouses', label: '🏭 Склады', icon: '🏢' }
   ];
   
   components.forEach(comp => {
@@ -407,11 +738,19 @@ document.addEventListener('DOMContentLoaded', ()=>{
       // mark active in right panel
       right.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
-      // For now only cameras, so just ensure cameras are loaded for current warehouse
-      const activeWarehouse = document.querySelector('header .tab-btn.active');
-      if(activeWarehouse) {
-        const wid = SECTION_TO_WAREHOUSE[activeWarehouse.dataset.section];
-        loadCamerasForWarehouse(wid, activeWarehouse.dataset.section);
+      // Save active component
+      sessionStorage.setItem('activeComponent', comp.id);
+      
+      if(comp.id === 'cameras'){
+        // Для камер загружаем для текущего склада
+        const activeWarehouse = document.querySelector('header .tab-btn.active');
+        if(activeWarehouse) {
+          const wid = getWarehouseIdFromSection(activeWarehouse.dataset.section); // Use helper function
+          loadCamerasForWarehouse(wid, activeWarehouse.dataset.section);
+        }
+      } else if(comp.id === 'warehouses'){
+        // Для складов загружаем список всех складов
+        loadWarehouses();
       }
     });
     right.appendChild(btn);
@@ -423,12 +762,20 @@ document.addEventListener('DOMContentLoaded', ()=>{
   const headBtn = document.querySelector(`header .tab-btn[data-section="${savedSection}"]`);
   if(headBtn) headBtn.classList.add('active');
   // show preview image for saved section
-  const wid = SECTION_TO_WAREHOUSE[savedSection];
+  const wid = getWarehouseIdFromSection(savedSection); // Use helper function
   CURRENT_WAREHOUSE_ID = wid;
   const pi = document.getElementById('preview-img'); if(pi) pi.src = sectionImageFor(savedSection);
-  // leave preview-cameras empty and prompt user to choose a component
-  const container = document.getElementById('preview-cameras');
-  if(container) container.innerHTML = '<div class="muted">Выберите компонент справа, чтобы настроить</div>';
+  
+  // Restore active component from session
+  const savedComponent = sessionStorage.getItem('activeComponent');
+  if(savedComponent){
+    const compBtn = document.querySelector(`#right-sections button[data-component="${savedComponent}"]`);
+    if(compBtn) compBtn.click();
+  } else {
+    // leave preview-cameras empty and prompt user to choose a component
+    const container = document.getElementById('preview-cameras');
+    if(container) container.innerHTML = '<div class="muted">Выберите компонент справа, чтобы настроить</div>';
+  }
 });
 
 // simple notifier

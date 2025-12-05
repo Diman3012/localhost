@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Склады — Мониторинг (ч/б)</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
 <header>
@@ -31,12 +31,135 @@
 
 <script>
 const MOSCOW_TZ = "Europe/Moscow";
-const sectionImages = {
+let sectionImages = {
   buffer: "1.jpg",
   south: "2.jpg",
   north: "3.jpg",
   ready: "4.jpg"
 };
+
+// Helper function to get image for warehouse (use standard mapping or default to 1.jpg)
+function getImageForWarehouse(warehouseId){
+  // Check if this warehouse is mapped to a standard section
+  const section = WAREHOUSE_TO_SECTION[warehouseId];
+  if(section && sectionImages[section]){
+    return sectionImages[section];
+  }
+  // For unmapped warehouses, use default image or based on ID mod 4
+  const images = ["1.jpg", "2.jpg", "3.jpg", "4.jpg"];
+  return images[(warehouseId - 1) % images.length];
+}
+
+const SECTION_TO_WAREHOUSE = { buffer: 1, south: 2, north: 3, ready: 4 };
+const WAREHOUSE_TO_SECTION = { 1: 'buffer', 2: 'south', 3: 'north', 4: 'ready' };
+
+let sections = { buffer: "Буфферн склад СПО", south: "Южный склад анодов ОО", north: "Северный склад анодов ОО", ready: "Склад готовой продукции" };
+let allWarehouses = []; // Все склады из БД
+
+// Загружаем названия складов из БД
+async function loadWarehouseNames(){
+  try{
+    const resp = await fetch('warehouses_api.php', { cache: 'no-store' });
+    if(!resp.ok) return;
+    const data = await resp.json();
+    allWarehouses = data.warehouses || [];
+    
+    // Индекс по id
+    const byId = {};
+    allWarehouses.forEach(w => { byId[w.id] = w; });
+    
+    // Обновляем названия для уже привязанных складов
+    allWarehouses.forEach(wh => {
+      const section = WAREHOUSE_TO_SECTION[wh.id];
+      if(section){
+        sections[section] = wh.name;
+      }
+    });
+    
+    // Попробуем сопоставить новые разделы по type/name если не привязано
+    const assignForSection = (sectionKey, matcher) => {
+      const currentId = SECTION_TO_WAREHOUSE[sectionKey];
+      if (byId[currentId]) return; // уже привязано
+      const found = allWarehouses.find(matcher);
+      if (found) {
+        SECTION_TO_WAREHOUSE[sectionKey] = found.id;
+        WAREHOUSE_TO_SECTION[found.id] = sectionKey;
+        sections[sectionKey] = found.name;
+      }
+    };
+    
+    // buffer: ищем буфер
+    assignForSection('buffer', w => (w.type||'').toLowerCase().includes('буфер') || (w.name||'').toLowerCase().includes('буфер'));
+    // ready: ищем готов
+    assignForSection('ready', w => (w.type||'').toLowerCase().includes('готов') || (w.name||'').toLowerCase().includes('готов'));
+    // south/north: ищем юж/сев
+    assignForSection('south', w => (w.name||'').toLowerCase().includes('юж'));
+    assignForSection('north', w => (w.name||'').toLowerCase().includes('сев'));
+    
+    // Если не найдено юг/север - ищем по типу "аноды"
+    const anodes = allWarehouses.filter(w => (w.type||'').toLowerCase().includes('анод') || (w.name||'').toLowerCase().includes('анод'));
+    if (!byId[SECTION_TO_WAREHOUSE['south']] && anodes[0]) {
+      SECTION_TO_WAREHOUSE['south'] = anodes[0].id;
+      WAREHOUSE_TO_SECTION[anodes[0].id] = 'south';
+      sections['south'] = anodes[0].name;
+    }
+    if (!byId[SECTION_TO_WAREHOUSE['north']] && anodes[1]) {
+      SECTION_TO_WAREHOUSE['north'] = anodes[1].id;
+      WAREHOUSE_TO_SECTION[anodes[1].id] = 'north';
+      sections['north'] = anodes[1].name;
+    }
+    
+    // Обновляем кнопки в header
+    updateHeaderButtons();
+  }catch(e){ console.error('Error loading warehouse names:', e); }
+}
+
+function updateHeaderButtons(){
+  const header = document.querySelector('header');
+  
+  // Обновляем текст существующих кнопок
+  Object.entries(SECTION_TO_WAREHOUSE).forEach(([section, whId]) => {
+    const btn = header.querySelector(`[data-section="${section}"]`);
+    if(btn && sections[section]){
+      btn.textContent = sections[section];
+    }
+  });
+  
+  // Добавляем кнопки для складов, которые не привязаны ни к одному разделу
+  allWarehouses.forEach(wh => {
+    if (!WAREHOUSE_TO_SECTION[wh.id]) {
+      // Этот склад не привязан ни к одному разделу - создаём для него кнопку
+      const warehouseId = `warehouse-${wh.id}`;
+      let btn = header.querySelector(`[data-section="${warehouseId}"]`);
+      if (!btn) {
+        // Кнопка не существует, создаём её
+        btn = document.createElement('button');
+        btn.className = 'tab-btn';
+        btn.setAttribute('data-section', warehouseId);
+        btn.textContent = wh.name;
+        // Вставляем её перед divider'ом (перед flex:1)
+        const divider = header.querySelector('[style*="flex:1"]');
+        if (divider) {
+          header.insertBefore(btn, divider);
+        } else {
+          header.appendChild(btn);
+        }
+        // Добавляем обработчик клика
+        btn.addEventListener('click', ()=> {
+          document.querySelectorAll(".tab-btn").forEach(b=>b.classList.remove("active"));
+          btn.classList.add("active");
+          // Показываем правильную секцию для этого склада
+          document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
+          const sectionEl = document.getElementById(warehouseId);
+          if(sectionEl) sectionEl.classList.add("active");
+        });
+      } else {
+        // Кнопка уже существует, обновляем текст
+        btn.textContent = wh.name;
+      }
+    }
+  });
+}
 
 function fmtDateInTZ(date){
   return new Intl.DateTimeFormat("ru-RU", { timeZone: MOSCOW_TZ, day: "2-digit", month:"2-digit", year:"numeric" }).format(date);
@@ -50,8 +173,8 @@ function getHourInTZ(date){
   return date.getUTCHours();
 }
 function getShiftForHour(h) {
-  if (h >= 7 && h < 12) return "Утренняя";
-  if (h >= 12 && h < 19) return "Дневная";
+  if (h >= 7 && h < 15) return "Дневная";
+  if (h >= 15 && h < 23) return "Вечерная";
   return "Ночная";
 }
 
@@ -63,12 +186,26 @@ function openFullscreen(src){
 document.querySelector(".close-btn").addEventListener("click", ()=>{ const fs = document.getElementById("fullscreen"); fs.style.display="none"; fs.setAttribute("aria-hidden","true"); });
 document.getElementById("fullscreen").addEventListener("click",(e)=>{ if(e.target.id==="fullscreen") { e.currentTarget.style.display="none"; e.currentTarget.setAttribute("aria-hidden","true"); } });
 
-function createSection(id, title){
+function createSection(id, title, warehouseId){
+  // warehouseId is optional - for standard sections, id IS the section name
+  // For new warehouses, id is warehouse-N and we need warehouseId to get the right image
   const container = document.getElementById(id);
+  if(!container) return;
+  
+  // Get image - prefer to use warehouseId if provided, otherwise try to derive from id
+  let imageSrc;
+  if(warehouseId){
+    imageSrc = getImageForWarehouse(warehouseId);
+  } else if(sectionImages[id]){
+    imageSrc = sectionImages[id];
+  } else {
+    imageSrc = "1.jpg";
+  }
+  
   container.innerHTML = `
     <div class="content" role="region" aria-label="${title}">
       <div class="camera" tabindex="0" aria-label="Камера ${title}">
-        <img src="${sectionImages[id]}" alt="Камера ${title}">
+        <img src="${imageSrc}" alt="Камера ${title}">
       </div>
       <div class="info" aria-live="polite">
         <div class="row"><div><small>Дата</small></div><div class="big" id="${id}-date">-</div></div>
@@ -102,7 +239,7 @@ function createSection(id, title){
   cam.addEventListener("keydown", (e)=> { if(e.key==="Enter"||e.key===" ") openFullscreen(img.src); });
 }
 
-const sections = { buffer: "Буфферн склад СПО", south: "Южный склад анодов ОО", north: "Северный склад анодов ОО", ready: "Склад готовой продукции" };
+// Create sections for standard warehouses on init
 Object.entries(sections).forEach(([id,title])=> createSection(id,title));
 
 // Initial state is the markup defaults (first tab/section active).
@@ -113,7 +250,9 @@ document.querySelectorAll(".tab-btn").forEach(btn=>{
     document.querySelectorAll(".tab-btn").forEach(b=>b.classList.remove("active"));
     btn.classList.add("active");
     document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
-    document.getElementById(btn.dataset.section).classList.add("active");
+    const sectionId = btn.dataset.section;
+    const el = document.getElementById(sectionId);
+    if(el) el.classList.add("active");
     // Do not persist selection to sessionStorage here — keep main page default behavior
   });
 });
@@ -124,10 +263,14 @@ async function updateDashboard(){
   const timeStr = fmtTimeInTZ(now);
   const hour = getHourInTZ(now);
 
+  // Update time for standard sections
   Object.keys(sections).forEach(id=>{
-    document.getElementById(`${id}-date`).textContent = dateStr;
-    document.getElementById(`${id}-time`).textContent = timeStr;
-    document.getElementById(`${id}-shift`).textContent = getShiftForHour(hour);
+    const dateEl = document.getElementById(`${id}-date`);
+    const timeEl = document.getElementById(`${id}-time`);
+    const shiftEl = document.getElementById(`${id}-shift`);
+    if(dateEl) dateEl.textContent = dateStr;
+    if(timeEl) timeEl.textContent = timeStr;
+    if(shiftEl) shiftEl.textContent = getShiftForHour(hour);
   });
 
   try{
@@ -138,8 +281,27 @@ async function updateDashboard(){
     }
     const data = await resp.json();
 
-    Object.keys(sections).forEach(id=>{
-      const section = data[id] || { trucks:0, in:0, out:0, arrivals:[] };
+    // Process data for all warehouses returned by API (including standard and new ones)
+    Object.entries(data).forEach(([key, section]) => {
+      if (!section.warehouse_id) return;
+      
+      const warehouse_id = section.warehouse_id;
+      const sectionId = WAREHOUSE_TO_SECTION[warehouse_id];
+      
+      // For non-standard warehouses (not in sections), use warehouse-ID-based ID
+      let displayId = sectionId || `warehouse-${warehouse_id}`;
+      
+      // Create section if it doesn't exist (for new warehouses)
+      if (!document.getElementById(displayId)) {
+        const container = document.createElement('section');
+        container.id = displayId;
+        container.className = 'section';
+        document.querySelector('main.container').appendChild(container);
+        
+        const warehouseName = allWarehouses.find(w => w.id === warehouse_id)?.name || `Склад ${warehouse_id}`;
+        createSection(displayId, warehouseName, warehouse_id); // Pass warehouse_id for correct image
+      }
+      
       const arrivals = section.arrivals || [];
       
       // Считаем общие показатели на основе статуса arrivals (status_name)
@@ -169,12 +331,24 @@ async function updateDashboard(){
       });
 
       // Обновляем сводные цифры
-      document.getElementById(`${id}-trucks`).textContent = trucks;
-      document.getElementById(`${id}-in`).textContent = `пакетов: ${totalInPackages} / анодов: ${totalInBlocks}`;
-      document.getElementById(`${id}-out`).textContent = `пакетов: ${totalOutPackages} / анодов: ${totalOutBlocks}`;
+      const trucksEl = document.getElementById(`${displayId}-trucks`);
+      const inEl = document.getElementById(`${displayId}-in`);
+      const outEl = document.getElementById(`${displayId}-out`);
+      if(trucksEl) trucksEl.textContent = trucks;
+      if(inEl) inEl.textContent = `пакетов: ${totalInPackages} / анодов: ${totalInBlocks}`;
+      if(outEl) outEl.textContent = `пакетов: ${totalOutPackages} / анодов: ${totalOutBlocks}`;
+
+      // Update time for this section too
+      const dateEl = document.getElementById(`${displayId}-date`);
+      const timeEl = document.getElementById(`${displayId}-time`);
+      const shiftEl = document.getElementById(`${displayId}-shift`);
+      if(dateEl) dateEl.textContent = dateStr;
+      if(timeEl) timeEl.textContent = timeStr;
+      if(shiftEl) shiftEl.textContent = getShiftForHour(hour);
 
       // Таблица arrivals
-      const tbody = document.getElementById(`${id}-tbody`);
+      const tbody = document.getElementById(`${displayId}-tbody`);
+      if(!tbody) return; // skip if section not found
       
       if(arrivals.length === 0){
         tbody.innerHTML = '<tr><td colspan="8" class="no-data">Нет данных</td></tr>';
@@ -233,15 +407,18 @@ async function updateDashboard(){
         });
         tbody.innerHTML = rows;
       }
-    });
+    }); // Closes: Object.entries(data).forEach
 
   } catch(e){
     console.error("Ошибка при получении данных:", e);
   }
 }
 
-updateDashboard();
-setInterval(updateDashboard, 2000);
+// Загружаем названия складов из БД
+loadWarehouseNames().then(()=> {
+  updateDashboard();
+  setInterval(updateDashboard, 2000);
+});
 
 function flash(msg, ms=2500){
   let el = document.createElement("div");
